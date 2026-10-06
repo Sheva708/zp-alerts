@@ -75,7 +75,6 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="banner"><b>Працюють наші</b><span>Слава Україні</span></div>
 <button class="send ready" id="simBtn" style="margin:0 0 14px">⚠️ Симулювати нову загрозу</button>
 <div id="feed"></div>
-<div class="demo">Демо-дані для прототипу. Реальні дані підключаються через бекенд.</div>
 </section>
 <section id="tab-report" class="hide">
 <h2>Оповістіть нас зручним способом</h2>
@@ -138,6 +137,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <input type="file" accept="audio/*" id="vfile" class="hide">
 </div></div>
 <script>
+window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
 var COMM=["Запоріжжя","Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця"];
 var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
@@ -235,4 +235,61 @@ function pickVoice(){var list=allVoices();setStat(list.length?("Знайдено
 voice=list.filter(function(x){return x.name===ST.voiceName})[0]||list.filter(isMale)[0]||list[0]||null;
 var sel=$("voiceSel");if(sel){sel.innerHTML=list.length?list.map(function(x){return '<option value="'+x.name+'"'+(voice&&x.name===voice.name?" selected":"")+'>'+x.name+(isMale(x)?" ♂":"")+'</option>'}).join(""):'<option>Голос за замовчуванням</option>'}}
 if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=pickVoice}
-function unlockAudio(){try{actx=actx||new (window.AudioContext|
+function unlockAudio(){try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume()}catch(e){}}
+function beep(){unlockAudio();if(!actx)return;try{[0,.4].forEach(function(d){var o=actx.createOscillator(),g=actx.createGain();
+o.type="square";o.frequency.value=d?660:880;g.gain.value=.15;o.connect(g);g.connect(actx.destination);o.start(actx.currentTime+d);o.stop(actx.currentTime+d+.3)})}catch(e){}}
+var vstat="";
+function setStat(t){vstat=t;var e=$("vstat");if(e)e.textContent=t}
+function toast(t){var d=document.createElement("div");d.textContent=t;d.style.cssText="position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top,0px));z-index:99;background:var(--acc);color:#111;padding:14px 16px;border-radius:16px;font-size:16px;font-weight:600;text-align:center";document.body.appendChild(d);setTimeout(function(){d.remove()},4500)}
+function speak(text,tryN){tryN=tryN||0;
+if(!("speechSynthesis" in window)){toast("Цей браузер не підтримує озвучку. Відкрийте в Chrome.");return}
+try{if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();speechSynthesis.resume()}catch(e){}
+var u=new SpeechSynthesisUtterance(text);
+var langs=["uk-UA","ru-RU",""];u.lang=langs[tryN]||"";
+if(tryN===0&&voice){u.voice=voice;u.lang=voice.lang}
+u.rate=ST.rate;u.volume=1;u.pitch=(tryN===0&&isMale(voice))?0.9:ST.pitch;
+u.onstart=function(){setStat("🔊 Озвучується ("+(u.voice?u.voice.name:(u.lang||"голос за замовчуванням"))+")")};
+u.onerror=function(e){setStat("Помилка голосу: "+e.error);if(tryN<2){setTimeout(function(){speak(text,tryN+1)},150)}else toast("Голос не працює. Налаштування телефону → Мова та введення → Синтез мовлення → встановіть українську.")};
+setTimeout(function(){speechSynthesis.speak(u)},tryN===0?60:0);
+setTimeout(function(){if(!speechSynthesis.speaking&&!speechSynthesis.pending&&tryN===0&&!/Озвучується/.test(vstat)){/* silent failure */ setStat("Голос не відповів, пробую запасний");speak(text,1)}},1800)}
+function mins(v){var a=v.split(":");return (+a[0])*60+(+a[1])}
+function inSchedule(){if(!ST.sch)return true;var d=new Date(),n=d.getHours()*60+d.getMinutes(),a=mins(ST.t1),b=mins(ST.t2);return a<=b?(n>=a&&n<=b):(n>=a||n<=b)}
+function notify(title,body){if(!ST.notif||!("Notification" in window)||Notification.permission!=="granted")return;
+try{new Notification(title,{body:body,requireInteraction:true,vibrate:[300,150,300,150,600],tag:"threat-"+Date.now()})}catch(e){}}
+function fireAlert(type,ic,place,action,comm){
+var d=new Date(),t=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
+feed.unshift({type:type,ic:ic,ev:[[t,"g",action],[t,"s",place]]});renderFeed();
+var text="Увага! "+type+". "+place+". "+action+".";
+if(ST.sound&&inSchedule()){if(navigator.vibrate)navigator.vibrate([300,150,300,150,600]);var ks=["Увага",type,comm,action];if(clips[type]&&clips[action]){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
+notify(type,place+" — "+action);
+}
+var SCEN=[["Загроза FPV","🛸","Балабине, Центр села","Виявлено","Балабине"],
+["Загроза шахедів","✈️","Нижня Хортиця","Падіння","Нижня Хортиця"],
+["Загроза FPV","🛸","Кушугум, околиця","Детонація","Кушугум"],
+["Артобстріл","💥","Шевченківський район","Виявлено","Запоріжжя"],
+["Загроза FPV","🛸","Новоолександрівка","Виявлено","Новоолександрівка"],
+["Загроза шахедів","✈️","Малокатеринівка","Виявлено","Малокатеринівка"],
+["Артобстріл","💥","Комишуваха","Падіння","Комишуваха"]];
+$("simBtn").onclick=function(){unlockAudio();
+var pool=SCEN.filter(function(x){return ST.comm.indexOf(x[4])>-1});
+if(!pool.length){alert("Оберіть хоча б одну громаду");return}
+var x=pool[Math.floor(Math.random()*pool.length)];fireAlert(x[0],x[1],x[2],x[3],x[4])};
+$("testBtn").onclick=function(){unlockAudio();var ks=["Увага","Загроза FPV","Запоріжжя","Виявлено"];if(clips["Загроза FPV"]&&clips["Виявлено"])playClips(ks.filter(function(k){return clips[k]}));else speak("Увага! Загроза FPV. Запоріжжя. Виявлено. Це перевірка голосу.")};
+async function setWake(on){
+try{if(on&&"wakeLock" in navigator){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",function(){wl=null})}
+else if(!on&&wl){await wl.release();wl=null}else if(on){alert("Ваш браузер не підтримує утримання екрана")}}catch(e){}}
+document.addEventListener("visibilitychange",function(){if(!document.hidden&&ST.wake&&!wl)setWake(true)});
+$("wakeSw").onclick=function(){ST.wake=!ST.wake;save();applySw();setWake(ST.wake)};
+$("notSw").onclick=async function(){unlockAudio();
+if(!("Notification" in window)){alert("Браузер не підтримує сповіщення");return}
+if(!ST.notif){var r=Notification.permission==="granted"?"granted":await Notification.requestPermission();ST.notif=(r==="granted")}else ST.notif=false;
+save();applySw()};
+$("pitchR").value=ST.pitch;$("rateR").value=ST.rate;
+$("pitchR").oninput=function(){ST.pitch=+this.value;save()};$("rateR").oninput=function(){ST.rate=+this.value;save()};
+$("voiceSel").onchange=function(){ST.voiceName=this.value;save();pickVoice()};
+document.addEventListener("click",unlockAudio,{once:true});
+if(ST.wake)setWake(true);
+renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
+</script>
+</body>
+</html>
