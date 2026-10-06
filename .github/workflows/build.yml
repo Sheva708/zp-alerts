@@ -23,17 +23,30 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npm install @capacitor/local-notifications@6 @capacitor-community/text-to-speech@5 --legacy-peer-deps || echo "WARN: core plugins failed"
+          npm install @anuradev/capacitor-background-mode@6 --legacy-peer-deps || npm install @anuradev/capacitor-background-mode --legacy-peer-deps || echo "WARN: background plugin failed"
           echo '{"appId":"ua.zaporizhzhia.alerts","appName":"Zaporizhzhia Alerts","webDir":"www","plugins":{"CapacitorHttp":{"enabled":true}}}' > capacitor.config.json
           npx cap add android
           npx cap sync android
-      - name: Allow microphone
+      - name: Android permissions
         run: |
-          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <application#' android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />\n    <application#' android/app/src/main/AndroidManifest.xml
+      - name: Fixed signing key
+        run: |
+          mkdir -p ~/.android
+          if [ -f debug.keystore ]; then cp debug.keystore ~/.android/debug.keystore; fi
       - name: Build APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug || {
+            echo "Build with background plugin failed, retrying without it";
+            cd ..;
+            npm uninstall @anuradev/capacitor-background-mode --legacy-peer-deps || true;
+            npx cap sync android;
+            cd android;
+            ./gradlew assembleDebug;
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: zaporizhzhia-alerts-apk
