@@ -72,7 +72,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <button class="pill" id="setBtn" style="padding:12px 16px">⚙️</button>
 </header>
 <section id="tab-feed">
-<div class="banner"><b>Працюють наші</b><span>Слава Україні</span></div>
+<div class="banner hide" id="okBanner"><b>Працюють наші</b><span>Слава Україні</span></div>
 <div id="feed"></div>
 </section>
 <section id="tab-report" class="hide">
@@ -106,6 +106,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="seg" id="theme"><button data-v="system" class="on">Системна</button><button data-v="light">Світла</button><button data-v="dark">Темна</button></div>
 <div class="sec">Сповіщення про загрози</div>
 <div class="line"><span>Не гасити екран</span><button class="sw" id="wakeSw"></button></div>
+<div class="line"><span>Працювати у фоні (з вимкненим екраном)</span><button class="sw" id="bgSw"></button></div>
 <div class="line"><span>Системні сповіщення</span><button class="sw" id="notSw"></button></div>
 <div class="line"><span>Голос</span><select id="voiceSel" style="max-width:62%;background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:15px"></select></div>
 <button class="send" id="vpackBtn" style="margin-top:10px">🎙️ Голосовий пакет (чоловічий голос)</button>
@@ -143,7 +144,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <script>
 window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
 var COMM=["Запоріжжя","Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця"];
-var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua"};
+var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua"};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
 function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}}
 var $=function(i){return document.getElementById(i)};
@@ -166,7 +167,7 @@ return '<div class="line"><span>'+c+'</span><button class="sw'+(on?" on":"")+'" 
 function applyTheme(){var r=document.documentElement;if(ST.theme==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",ST.theme);
 Array.prototype.forEach.call($("theme").children,function(b){b.classList.toggle("on",b.dataset.v===ST.theme)})}
 function applySw(){$("soundSw").classList.toggle("on",ST.sound);$("soundIco").textContent=ST.sound?"🔊":"🔇";
-$("schSw").classList.toggle("on",ST.sch);$("silSw").classList.toggle("on",ST.sil);$("wakeSw").classList.toggle("on",ST.wake);$("notSw").classList.toggle("on",ST.notif);$("t1").value=ST.t1;$("t2").value=ST.t2;
+$("schSw").classList.toggle("on",ST.sch);$("silSw").classList.toggle("on",ST.sil);$("wakeSw").classList.toggle("on",ST.wake);$("bgSw").classList.toggle("on",ST.bg);$("notSw").classList.toggle("on",ST.notif);$("t1").value=ST.t1;$("t2").value=ST.t2;
 $("t1").disabled=$("t2").disabled=!ST.sch;$("t1").style.opacity=$("t2").style.opacity=ST.sch?1:.5}
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
 document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
@@ -228,12 +229,16 @@ $("vbulkBtn").onclick=function(){$("vbulk").click()};
 $("vbulk").onchange=function(){var n=0;Array.prototype.forEach.call(this.files,function(f){var nm=f.name.replace(/\.[^.]+$/,"").trim().toLowerCase();
 var k=PH.filter(function(x){return x.toLowerCase()===nm})[0];if(k){clips[k]=f;dbPut(k,f);n++}});this.value="";vRender();toast("Розпізнано файлів: "+n)};
 $("vpackBtn").onclick=function(){vRender();$("vmodal").classList.add("open")};
+function CP(n){return window.Capacitor&&Capacitor.Plugins&&Capacitor.Plugins[n]||null}
+function isNative(){try{return !!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform())}catch(e){return false}}
+function nTTS(){return CP("TextToSpeech")}
+function tryp(f){try{var r=f();if(r&&r.catch)r.catch(function(){})}catch(e){}}
 var voice=null,actx=null,wl=null;
 var MALE=/ostap|остап|male|man\b|чолов|pavel|dmitry|yuri|maxim|aleksandr|oleksandr/i;
 function allVoices(){if(!("speechSynthesis" in window))return [];var v=speechSynthesis.getVoices();
 var uk=v.filter(function(x){return /^uk/i.test(x.lang)}),ru=v.filter(function(x){return /^ru/i.test(x.lang)});return uk.concat(ru)}
 function isMale(v){return v&&MALE.test(v.name)}
-function pickVoice(){var list=allVoices();setStat(list.length?("Знайдено голосів: "+list.length):"Українських голосів на пристрої не знайдено — буде голос за замовчуванням");
+function pickVoice(){if(nTTS())return;var list=allVoices();setStat(list.length?("Знайдено голосів: "+list.length):"Українських голосів на пристрої не знайдено — буде голос за замовчуванням");
 voice=list.filter(function(x){return x.name===ST.voiceName})[0]||list.filter(isMale)[0]||list[0]||null;
 var sel=$("voiceSel");if(sel){sel.innerHTML=list.length?list.map(function(x){return '<option value="'+x.name+'"'+(voice&&x.name===voice.name?" selected":"")+'>'+x.name+(isMale(x)?" ♂":"")+'</option>'}).join(""):'<option>Голос за замовчуванням</option>'}}
 if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=pickVoice}
@@ -244,6 +249,10 @@ var vstat="";
 function setStat(t){vstat=t;var e=$("vstat");if(e)e.textContent=t}
 function toast(t){var d=document.createElement("div");d.textContent=t;d.style.cssText="position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top,0px));z-index:99;background:var(--acc);color:#111;padding:14px 16px;border-radius:16px;font-size:16px;font-weight:600;text-align:center";document.body.appendChild(d);setTimeout(function(){d.remove()},4500)}
 function speak(text,tryN){tryN=tryN||0;
+var T=nTTS();
+if(T&&tryN===0){var o={text:text,lang:"uk-UA",rate:ST.rate,pitch:ST.pitch,volume:1,queueStrategy:0};if(ST.nvoice>=0)o.voice=ST.nvoice;
+setStat("🔊 Озвучується (системний голос)");
+T.speak(o).catch(function(e){setStat("Помилка голосу: "+(e&&e.message||e));speak(text,1)});return}
 if(!("speechSynthesis" in window)){toast("Цей браузер не підтримує озвучку. Відкрийте в Chrome.");return}
 try{if(speechSynthesis.speaking||speechSynthesis.pending)speechSynthesis.cancel();speechSynthesis.resume()}catch(e){}
 var u=new SpeechSynthesisUtterance(text);
@@ -256,7 +265,10 @@ setTimeout(function(){speechSynthesis.speak(u)},tryN===0?60:0);
 setTimeout(function(){if(!speechSynthesis.speaking&&!speechSynthesis.pending&&tryN===0&&!/Озвучується/.test(vstat)){/* silent failure */ setStat("Голос не відповів, пробую запасний");speak(text,1)}},1800)}
 function mins(v){var a=v.split(":");return (+a[0])*60+(+a[1])}
 function inSchedule(){if(!ST.sch)return true;var d=new Date(),n=d.getHours()*60+d.getMinutes(),a=mins(ST.t1),b=mins(ST.t2);return a<=b?(n>=a&&n<=b):(n>=a||n<=b)}
-function notify(title,body){if(!ST.notif||!("Notification" in window)||Notification.permission!=="granted")return;
+function notify(title,body){
+var L=CP("LocalNotifications");
+if(L){tryp(function(){return L.schedule({notifications:[{id:Math.floor(Date.now()%2000000000),title:title,body:body,channelId:"threat",schedule:{at:new Date(Date.now()+200)}}]})});return}
+if(!ST.notif||!("Notification" in window)||Notification.permission!=="granted")return;
 try{new Notification(title,{body:body,requireInteraction:true,vibrate:[300,150,300,150,600],tag:"threat-"+Date.now()})}catch(e){}}
 function announce(type,place,action,comm){
 var text="Увага! "+type+". "+(comm||place||"")+". "+action+".";
@@ -284,6 +296,10 @@ out.push({id:id,text:t.textContent.replace(/\s+/g," ").trim(),ms:isNaN(ms)?Date.
 var ANN={};try{ANN=JSON.parse(localStorage.getItem("zpann")||"{}")}catch(e){}
 function saveAnn(){try{var k=Object.keys(ANN);if(k.length>400)k.slice(0,k.length-400).forEach(function(x){delete ANN[x]});localStorage.setItem("zpann",JSON.stringify(ANN))}catch(e){}}
 var srcMsg={};
+var RW=R("працю(є|ють)\\s+(наші|ппо|пво|протиповітряна|повітряна оборона)"),okMs={};
+function findComm(t){for(var i=0;i<RC.length;i++)if(RC[i][1].test(t))return RC[i][0];return null}
+function updateBanner(){var m=0;Object.keys(okMs).forEach(function(k){m=Math.max(m,okMs[k])});$("okBanner").classList.toggle("hide",!(m&&Date.now()-m<20*60000))}
+
 function showSrc(){var l=srcs();$("srcStat").textContent=l.length?l.map(function(c){return c+": "+(srcMsg[c]||"…")}).join("\n"):"Джерел немає"}
 async function pollOne(ch){
 try{
@@ -291,14 +307,14 @@ var r=await fetch("https://t.me/s/"+encodeURIComponent(ch)+"?_="+Date.now());
 if(!r.ok)throw new Error("HTTP "+r.status);
 var msgs=parseTg(await r.text()),now=Date.now(),items=[],n=0;
 if(!msgs.length)throw new Error("канал не знайдено або закритий");
-msgs.forEach(function(m){var c=classify(m.text);if(!c)return;n++;
+msgs.forEach(function(m){if(now-m.ms<20*60000&&RW.test(m.text)&&findComm(m.text))okMs[ch]=Math.max(okMs[ch]||0,m.ms);var c=classify(m.text);if(!c)return;n++;
 if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch});
 if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm)}});
 saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;
 }catch(e){srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
-showSrc();renderFeed()}
+showSrc();updateBanner();renderFeed()}
 function pollAll(){var l=srcs();Object.keys(chFeed).forEach(function(k){if(l.indexOf(k)<0)delete chFeed[k]});l.forEach(pollOne);showSrc();renderFeed()}
-setInterval(function(){if(!document.hidden)pollAll()},30000);
+setInterval(function(){if(!document.hidden||(isNative()&&ST.bg))pollAll()},30000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)pollAll()});
 $("srcSave").onclick=function(){unlockAudio();ST.src=$("srcList").value;save();srcMsg={};pollAll()};
 var DEFAULT_FB="";
@@ -333,13 +349,25 @@ $("notSw").onclick=async function(){unlockAudio();
 if(!("Notification" in window)){alert("Браузер не підтримує сповіщення");return}
 if(!ST.notif){var r=Notification.permission==="granted"?"granted":await Notification.requestPermission();ST.notif=(r==="granted")}else ST.notif=false;
 save();applySw()};
+$("bgSw").onclick=function(){ST.bg=!ST.bg;save();applySw();applyBg()};
+function applyBg(){var B=CP("BackgroundMode");if(!B)return;
+if(ST.bg){tryp(function(){return B.setSettings&&B.setSettings({title:"Загрози Запоріжжя",text:"Стежимо за загрозами",subText:"Працює у фоні",silent:false,hidden:false,resume:true,channelName:"Фонова робота"})});
+tryp(function(){return B.enable&&B.enable()});tryp(function(){return B.disableWebViewOptimizations&&B.disableWebViewOptimizations()})}
+else tryp(function(){return B.disable&&B.disable()})}
+async function loadNVoices(){var T=nTTS();if(!T||!T.getSupportedVoices)return;
+try{var r=await T.getSupportedVoices();var v=(r.voices||[]).map(function(x,i){return {i:i,n:x.name||x.voiceURI||("голос "+i),l:x.lang||""}}).filter(function(x){return /^(uk|ru)/i.test(x.l)});
+$("voiceSel").innerHTML='<option value="-1">Системний за замовчуванням</option>'+v.map(function(x){return '<option value="'+x.i+'"'+(ST.nvoice===x.i?" selected":"")+'>'+esc(x.n)+' ('+esc(x.l)+')</option>'}).join("");
+setStat("Системних голосів: "+v.length)}catch(e){}}
+async function nativeInit(){if(!isNative())return;var L=CP("LocalNotifications");
+if(L){try{await L.requestPermissions()}catch(e){}try{await L.createChannel({id:"threat",name:"Загрози",description:"Оповіщення про загрози",importance:5,visibility:1,vibration:true,lights:true})}catch(e){}}
+loadNVoices();applyBg()}
 $("pitchR").value=ST.pitch;$("rateR").value=ST.rate;
 $("pitchR").oninput=function(){ST.pitch=+this.value;save()};$("rateR").oninput=function(){ST.rate=+this.value;save()};
-$("voiceSel").onchange=function(){ST.voiceName=this.value;save();pickVoice()};
+$("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voiceName=this.value}save();pickVoice()};
 document.addEventListener("click",unlockAudio,{once:true});
 if(ST.wake)setWake(true);
 renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
-$("rcomm").innerHTML=COMM.map(function(c){return '<option>'+c+'</option>'}).join("");$("fbcfg").value=ST.fb||"";$("srcList").value=ST.src||"";connect();pollAll();
+$("rcomm").innerHTML=COMM.map(function(c){return '<option>'+c+'</option>'}).join("");$("fbcfg").value=ST.fb||"";$("srcList").value=ST.src||"";connect();pollAll();setInterval(updateBanner,30000);nativeInit();
 </script>
 </body>
 </html>
