@@ -1,1 +1,238 @@
-index.html
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Запоріжжя: Загрози</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#111;--card:#1b1f1d;--card2:#424242;--text:#f2f2f2;--muted:#a8a8a8;--acc:#f6c244;--accd:#4a3b17;--chip:#262626;--line:#555}
+:root[data-theme="light"]{--bg:#f6f4ee;--card:#fff;--card2:#ecebe6;--text:#1a1a1a;--muted:#666;--acc:#d99a00;--accd:#f3e3b5;--chip:#e3e1da;--line:#ccc}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111;--card:#1b1f1d;--card2:#424242;--text:#f2f2f2;--muted:#a8a8a8;--acc:#f6c244;--accd:#4a3b17;--chip:#262626;--line:#555}}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]):not([data-theme="light"]){--bg:#f6f4ee;--card:#fff;--card2:#ecebe6;--text:#1a1a1a;--muted:#666;--acc:#d99a00;--accd:#f3e3b5;--chip:#e3e1da;--line:#ccc}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+#app{max-width:480px;margin:0 auto;min-height:100vh;padding:12px 14px 110px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.pill{background:var(--accd);color:var(--text);border:0;border-radius:24px;padding:12px 18px;font-size:20px;font-weight:600;display:flex;align-items:center;gap:8px}
+.badge{background:var(--acc);color:#111;border-radius:50%;width:28px;height:28px;display:grid;place-items:center;font-size:15px}
+.sp{flex:1}
+.ibtn{background:none;border:0;color:var(--muted);font-size:24px;padding:6px}
+.sw{width:50px;height:28px;border-radius:14px;background:var(--chip);position:relative;border:0;flex:none;transition:.2s}
+.sw::after{content:"";position:absolute;top:3px;left:4px;width:22px;height:22px;border-radius:50%;background:#999;transition:.2s}
+.sw.on{background:var(--accd)}.sw.on::after{left:24px;background:var(--acc)}
+.banner{background:var(--accd);border:1px solid var(--line);border-radius:22px;padding:16px 20px;margin-bottom:14px}
+.banner b{font-size:22px;display:block}.banner span{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:16px 18px;margin-bottom:12px}
+.card h3{margin:0 0 8px;font-size:22px;display:flex;align-items:center;gap:10px}
+.ic{width:34px;height:34px;border-radius:50%;background:#eee;color:#111;display:grid;place-items:center;font-size:18px}
+.row{font-size:17px;padding:3px 0;color:var(--text)}.row .t{color:var(--muted);margin-right:6px}
+.dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.g{background:#5cb85c}.s{background:#bbb;border-radius:3px}.r{background:#e55}
+.demo{font-size:12px;color:var(--muted);text-align:center;margin:6px 0 14px}
+h2{font-size:26px;text-align:center;margin:14px 0 22px;font-weight:500}
+h4{text-align:center;font-size:19px;margin:18px 0 10px;font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:2px solid var(--line);background:none;color:var(--text);border-radius:14px;padding:11px 16px;font-size:18px}
+.chip.sel{border-color:var(--acc);background:var(--accd)}
+input[type=text],textarea{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:16px;padding:16px;font-size:16px;margin-top:12px;font-family:inherit}
+.send{width:100%;margin-top:12px;border:2px solid var(--line);background:none;color:var(--muted);border-radius:16px;padding:16px;font-size:20px}
+.send.ready{background:var(--acc);color:#111;border-color:var(--acc);font-weight:600}
+.mic{display:block;margin:12px auto;width:130px;height:130px;border-radius:50%;border:0;background:var(--acc);font-size:56px}
+.mic.rec{background:#e55;animation:p 1s infinite}
+@keyframes p{50%{transform:scale(1.06)}}
+.timer{text-align:center;font-size:36px;color:var(--muted);font-variant-numeric:tabular-nums}
+nav{position:fixed;left:0;right:0;bottom:calc(10px + env(safe-area-inset-bottom,0px));display:flex;justify-content:center;pointer-events:none}
+nav div{pointer-events:auto;width:min(452px,calc(100% - 28px));background:var(--card);border:1px solid var(--line);border-radius:36px;display:flex;padding:6px;box-shadow:0 4px 20px #0006}
+nav button{flex:1;background:none;border:0;border-radius:30px;padding:10px 4px;color:var(--muted);font-size:13px;display:flex;flex-direction:column;align-items:center;gap:2px}
+nav button span{font-size:24px}nav button.on{background:var(--accd);color:var(--acc)}
+.modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;padding:calc(70px + env(safe-area-inset-top,0px)) 14px 14px;overflow:auto;z-index:9}
+.modal.open{display:flex}
+.sheet{background:var(--card2);width:100%;max-width:452px;border-radius:30px;padding:22px}
+.sheet h3{margin:0;font-size:26px;font-weight:500}
+.sec{margin:22px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--line);font-size:18px}
+.seg{display:flex;gap:8px;margin:14px 0}
+.seg button{flex:1;border:0;border-radius:24px;padding:16px 4px;font-size:17px;background:var(--chip);color:var(--text)}
+.seg button.on{background:var(--acc);color:#111;font-weight:600}
+.line{display:flex;justify-content:space-between;align-items:center;margin:12px 0;font-size:18px;gap:8px}
+.line input[type=time]{background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:20px}
+.x{float:right;background:var(--acc);color:#111;border:0;border-radius:50%;width:48px;height:48px;font-size:24px}
+a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+<button class="pill" id="hromady">Громади <span class="badge" id="hcount">3</span></button>
+<span class="sp"></span>
+<button class="ibtn" id="soundIco">🔊</button>
+<button class="sw on" id="soundSw" aria-label="Звук"></button>
+<button class="pill" id="setBtn" style="padding:12px 16px">⚙️</button>
+</header>
+<section id="tab-feed">
+<div class="banner"><b>Працюють наші</b><span>Слава Україні</span></div>
+<button class="send ready" id="simBtn" style="margin:0 0 14px">⚠️ Симулювати нову загрозу</button>
+<div id="feed"></div>
+<div class="demo">Демо-дані для прототипу. Реальні дані підключаються через бекенд.</div>
+</section>
+<section id="tab-report" class="hide">
+<h2>Оповістіть нас зручним способом</h2>
+<h4>Напишіть нам</h4>
+<div class="chips" id="types"></div>
+<div class="chips" id="acts" style="margin-top:8px"></div>
+<input type="text" id="place" placeholder="Район або орієнтир, інша важлива інформація.">
+<button class="send" id="send">Надіслати</button>
+<h4 style="margin-top:34px">Або запишіть голосом</h4>
+<div class="timer" id="timer">00:00.00</div>
+<button class="mic" id="mic">🎙️</button>
+</section>
+<section id="tab-acc" class="hide">
+<div class="card"><h3>Про додаток</h3><div style="color:var(--muted);font-size:19px;line-height:1.4">Оперативна інформація про загрози для Запоріжжя та населених пунктів Запорізького району.</div></div>
+<div class="card"><h3>Наші партнери</h3>
+<div style="color:var(--muted);font-size:18px;margin-bottom:12px">Додаток створений та розвивається завдяки підтримці наших партнерів.</div>
+<div class="links"><a href="#">Запорізька ОВА / Facebook</a><a href="#">Канал «Що? Куди?» / Telegram</a><a href="#">Канал «ЗАГРОЗА: Запоріжжя» / Telegram</a><a href="#">info@example.ua / Email</a></div></div>
+<div class="card"><h3>Для відгуків</h3><div style="color:var(--muted);font-size:18px">Є ідеї, побажання чи зауваження щодо роботи додатку? Напишіть нам.</div></div>
+</section>
+</div>
+<nav><div>
+<button data-t="feed" class="on"><span>❗</span>Загрози</button>
+<button data-t="report"><span>💬</span>Сповістити</button>
+<button data-t="acc"><span>👤</span>Акаунт</button>
+</div></nav>
+<div class="modal" id="hmodal"><div class="sheet">
+<button class="x" data-close>✕</button><h3>Громади</h3>
+<div class="sec" style="border:0">Оберіть громади для сповіщень</div>
+<div id="hlist"></div>
+</div></div>
+<div class="modal" id="smodal"><div class="sheet">
+<button class="x" data-close>✕</button><h3>Налаштування</h3>
+<div class="sec" style="margin-top:34px">Тема оформлення</div>
+<div class="seg" id="theme"><button data-v="system" class="on">Системна</button><button data-v="light">Світла</button><button data-v="dark">Темна</button></div>
+<div class="sec">Сповіщення про загрози</div>
+<div class="line"><span>Не гасити екран</span><button class="sw" id="wakeSw"></button></div>
+<div class="line"><span>Системні сповіщення</span><button class="sw" id="notSw"></button></div>
+<div class="line"><span>Голос</span><select id="voiceSel" style="max-width:62%;background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:15px"></select></div>
+<button class="send" id="vpackBtn" style="margin-top:10px">🎙️ Голосовий пакет (чоловічий голос)</button>
+<div class="demo" id="vstat" style="text-align:left;margin:6px 0"></div>
+<div class="line"><span>Тембр (нижче = грубіше)</span><input type="range" id="pitchR" min="0.1" max="1" step="0.05" style="width:48%"></div>
+<div class="line"><span>Швидкість</span><input type="range" id="rateR" min="0.6" max="1.2" step="0.05" style="width:48%"></div>
+<button class="send ready" id="testBtn">🔔 Перевірити голос</button>
+<div class="demo" style="text-align:left;margin-top:10px">Голос за замовчуванням чоловічий (якщо його немає на телефоні, використовується низький тембр). Працює, поки додаток відкритий. Режим «Не гасити екран» тримає екран увімкненим, щоб звук не зникав. Для заблокованого телефону потрібні системні push-сповіщення (див. нижче в чаті).</div>
+<div class="sec">Розклад голосових сповіщень</div>
+<div class="line"><span>Розклад сповіщень увімкнено</span><button class="sw" id="schSw"></button></div>
+<div class="line"><span>Початок сповіщень</span><input type="time" id="t1" value="04:00"></div>
+<div class="line"><span>Кінець сповіщень</span><input type="time" id="t2" value="22:00"></div>
+<div class="sec">Хвилина мовчання</div>
+<div class="line"><span>Увімкнути нагадування</span><button class="sw" id="silSw"></button></div>
+</div></div>
+<div class="modal" id="vmodal"><div class="sheet">
+<button class="x" data-close>✕</button><h3>Голосовий пакет</h3>
+<div class="demo" style="text-align:left;margin-top:30px;font-size:14px">Запишіть кожну фразу живим чоловічим голосом (або завантажте готовий аудіофайл). Додаток складатиме оповіщення з ваших записів: «Увага» → тип загрози → громада → дія. Поки записів немає, використовується системний голос.</div>
+<div class="sec" id="vprog">Записано: 0</div>
+<div id="vlist"></div>
+<button class="send ready" id="vbulkBtn" style="margin:0 0 6px">⬆ Завантажити всі файли одразу</button>
+<div class="demo" style="text-align:left">Назвіть файли як фрази: Увага.mp3, Загроза FPV.mp3, Балабине.mp3 тощо.</div>
+<input type="file" accept="audio/*" id="vbulk" multiple class="hide">
+<input type="file" accept="audio/*" id="vfile" class="hide">
+</div></div>
+<script>
+var COMM=["Запоріжжя","Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця"];
+var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85};
+try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
+function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}}
+var $=function(i){return document.getElementById(i)};
+var feed=[
+{type:"Загроза FPV",ic:"🛸",ev:[["07:48","g","Впав з детонацією"],["07:45","s","Шевченківський р-н"],["07:38","s","Балабине"]]},
+{type:"Загроза FPV",ic:"🛸",ev:[["07:43","g","Вилетів за межі району"],["07:35","s","Кушугум"]]},
+{type:"Загроза шахедів",ic:"✈️",ev:[["06:12","g","Впав в акваторії"],["06:05","s","Нижня Хортиця"],["05:58","s","Дніпровський р-н"]]}
+];
+function renderFeed(){
+$("feed").innerHTML=feed.map(function(c){
+return '<div class="card"><h3><span class="ic">'+c.ic+'</span>'+c.type+'</h3>'+c.ev.map(function(e){
+return '<div class="row"><span class="dot '+e[1]+'"></span><span class="t">'+e[0]+'</span>'+e[2]+'</div>'}).join("")+'</div>'}).join("");
+}
+function renderHromady(){
+$("hcount").textContent=ST.comm.length;
+$("hlist").innerHTML=COMM.map(function(c){var on=ST.comm.indexOf(c)>-1;
+return '<div class="line"><span>'+c+'</span><button class="sw'+(on?" on":"")+'" data-c="'+c+'"></button></div>'}).join("");
+}
+function applyTheme(){var r=document.documentElement;if(ST.theme==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",ST.theme);
+Array.prototype.forEach.call($("theme").children,function(b){b.classList.toggle("on",b.dataset.v===ST.theme)})}
+function applySw(){$("soundSw").classList.toggle("on",ST.sound);$("soundIco").textContent=ST.sound?"🔊":"🔇";
+$("schSw").classList.toggle("on",ST.sch);$("silSw").classList.toggle("on",ST.sil);$("wakeSw").classList.toggle("on",ST.wake);$("notSw").classList.toggle("on",ST.notif);$("t1").value=ST.t1;$("t2").value=ST.t2;
+$("t1").disabled=$("t2").disabled=!ST.sch;$("t1").style.opacity=$("t2").style.opacity=ST.sch?1:.5}
+document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
+document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
+["feed","report","acc"].forEach(function(t){$("tab-"+t).classList.toggle("hide",t!==b.dataset.t)});window.scrollTo(0,0)}});
+$("hromady").onclick=function(){$("hmodal").classList.add("open")};
+$("setBtn").onclick=function(){$("smodal").classList.add("open")};
+document.querySelectorAll("[data-close]").forEach(function(b){b.onclick=function(){b.closest(".modal").classList.remove("open")}});
+$("hlist").onclick=function(e){var c=e.target.dataset.c;if(!c)return;var i=ST.comm.indexOf(c);if(i>-1)ST.comm.splice(i,1);else ST.comm.push(c);save();renderHromady()};
+$("soundSw").onclick=function(){ST.sound=!ST.sound;save();applySw()};
+$("schSw").onclick=function(){ST.sch=!ST.sch;save();applySw()};
+$("silSw").onclick=function(){ST.sil=!ST.sil;save();applySw()};
+$("t1").onchange=function(){ST.t1=this.value;save()};$("t2").onchange=function(){ST.t2=this.value;save()};
+$("theme").onclick=function(e){if(e.target.dataset.v){ST.theme=e.target.dataset.v;save();applyTheme()}};
+var TYPES=["FPV","Артобстріл","Шахед","Ракета","КАБ"],ACTS=["Виявлено","Падіння","Детонація","Збито"];
+var selT=null,selA=null;
+function chips(id,arr,get,set){$(id).innerHTML=arr.map(function(a){return '<button class="chip'+(get()===a?" sel":"")+'">'+a+'</button>'}).join("");
+Array.prototype.forEach.call($(id).children,function(b){b.onclick=function(){set(get()===b.textContent?null:b.textContent);chips(id,arr,get,set);chk()}})}
+function chk(){$("send").classList.toggle("ready",!!(selT&&selA))}
+chips("types",TYPES,function(){return selT},function(v){selT=v});
+chips("acts",ACTS,function(){return selA},function(v){selA=v});
+$("send").onclick=function(){
+if(!selT||!selA)return;
+var d=new Date(),t=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2),p=$("place").value.trim();
+var ev=[[t,"g",selA]];if(p)ev.push([t,"s",p]);
+feed.unshift({type:"Загроза "+selT+" (ваше повідомлення)",ic:"📍",ev:ev});
+renderFeed();selT=selA=null;$("place").value="";
+chips("types",TYPES,function(){return selT},function(v){selT=v});chips("acts",ACTS,function(){return selA},function(v){selA=v});chk();
+document.querySelector('nav button[data-t="feed"]').click();
+};
+var rt=null,t0=0;
+$("mic").onclick=function(){
+if(rt){clearInterval(rt);rt=null;$("mic").classList.remove("rec");$("mic").textContent="🎙️";return}
+t0=Date.now();$("mic").classList.add("rec");$("mic").textContent="⏹";
+rt=setInterval(function(){var ms=Date.now()-t0,m=Math.floor(ms/60000),s=Math.floor(ms/1000)%60,c=Math.floor(ms/10)%100;
+$("timer").textContent=("0"+m).slice(-2)+":"+("0"+s).slice(-2)+"."+("0"+c).slice(-2)},50)};
+var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито"].concat(COMM);
+function dbOpen(cb){try{var r=indexedDB.open("zpvoice",1);r.onupgradeneeded=function(){r.result.createObjectStore("c")};
+r.onsuccess=function(){DB=r.result;cb()};r.onerror=function(){cb()}}catch(e){cb()}}
+function dbPut(k,b){try{if(DB)DB.transaction("c","readwrite").objectStore("c").put(b,k)}catch(e){}}
+function dbLoad(cb){if(!DB)return cb();try{var q=DB.transaction("c").objectStore("c").openCursor();
+q.onsuccess=function(){var c=q.result;if(c){clips[c.key]=c.value;c.continue()}else cb()};q.onerror=function(){cb()}}catch(e){cb()}}
+function playBlob(b){return new Promise(function(r){try{var a=new Audio(URL.createObjectURL(b));a.onended=a.onerror=function(){r()};a.play().catch(r)}catch(e){r()}})}
+function playClips(keys){return keys.reduce(function(p,k){return p.then(function(){return playBlob(clips[k])})},Promise.resolve())}
+function vRender(){var n=PH.filter(function(k){return clips[k]}).length;$("vprog").textContent="Записано: "+n+" із "+PH.length;
+$("vlist").innerHTML=PH.map(function(k,i){var ok=!!clips[k];
+return '<div class="line" style="margin:8px 0"><span style="flex:1;font-size:16px">'+(ok?"✅ ":"⬜ ")+k+'</span>'+
+'<button class="chip" data-a="rec" data-k="'+k+'" style="padding:8px 11px">⏺</button>'+
+'<button class="chip" data-a="up" data-k="'+k+'" style="padding:8px 11px">⬆</button>'+
+(ok?'<button class="chip" data-a="play" data-k="'+k+'" style="padding:8px 11px">▶</button>':'')+'</div>'}).join("")}
+var mr=null,mrKey=null,mrBtn=null;
+$("vlist").onclick=async function(e){var b=e.target.closest("button");if(!b)return;var k=b.dataset.k,a=b.dataset.a;
+if(a==="play"){playBlob(clips[k]);return}
+if(a==="up"){$("vfile").dataset.k=k;$("vfile").click();return}
+if(a==="rec"){
+if(mr){mr.stop();return}
+try{var st=await navigator.mediaDevices.getUserMedia({audio:true});var ch=[];mr=new MediaRecorder(st);mrKey=k;b.textContent="⏹";b.style.borderColor="#e55";
+mr.ondataavailable=function(ev){if(ev.data.size)ch.push(ev.data)};
+mr.onstop=function(){st.getTracks().forEach(function(t){t.stop()});var bl=new Blob(ch,{type:mr.mimeType||"audio/webm"});clips[mrKey]=bl;dbPut(mrKey,bl);mr=null;vRender()};
+mr.start()}catch(err){mr=null;toast("Немає доступу до мікрофона. Використайте ⬆ щоб завантажити готовий файл.")}}};
+$("vfile").onchange=function(){var f=this.files[0],k=this.dataset.k;if(!f)return;clips[k]=f;dbPut(k,f);this.value="";vRender()};
+$("vbulkBtn").onclick=function(){$("vbulk").click()};
+$("vbulk").onchange=function(){var n=0;Array.prototype.forEach.call(this.files,function(f){var nm=f.name.replace(/\.[^.]+$/,"").trim().toLowerCase();
+var k=PH.filter(function(x){return x.toLowerCase()===nm})[0];if(k){clips[k]=f;dbPut(k,f);n++}});this.value="";vRender();toast("Розпізнано файлів: "+n)};
+$("vpackBtn").onclick=function(){vRender();$("vmodal").classList.add("open")};
+var voice=null,actx=null,wl=null;
+var MALE=/ostap|остап|male|man\b|чолов|pavel|dmitry|yuri|maxim|aleksandr|oleksandr/i;
+function allVoices(){if(!("speechSynthesis" in window))return [];var v=speechSynthesis.getVoices();
+var uk=v.filter(function(x){return /^uk/i.test(x.lang)}),ru=v.filter(function(x){return /^ru/i.test(x.lang)});return uk.concat(ru)}
+function isMale(v){return v&&MALE.test(v.name)}
+function pickVoice(){var list=allVoices();setStat(list.length?("Знайдено голосів: "+list.length):"Українських голосів на пристрої не знайдено — буде голос за замовчуванням");
+voice=list.filter(function(x){return x.name===ST.voiceName})[0]||list.filter(isMale)[0]||list[0]||null;
+var sel=$("voiceSel");if(sel){sel.innerHTML=list.length?list.map(function(x){return '<option value="'+x.name+'"'+(voice&&x.name===voice.name?" selected":"")+'>'+x.name+(isMale(x)?" ♂":"")+'</option>'}).join(""):'<option>Голос за замовчуванням</option>'}}
+if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=pickVoice}
+function unlockAudio(){try{actx=actx||new (window.AudioContext|
