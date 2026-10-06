@@ -73,7 +73,6 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 </header>
 <section id="tab-feed">
 <div class="banner"><b>Працюють наші</b><span>Слава Україні</span></div>
-<button class="send ready" id="simBtn" style="margin:0 0 14px">⚠️ Симулювати нову загрозу</button>
 <div id="feed"></div>
 </section>
 <section id="tab-report" class="hide">
@@ -81,17 +80,13 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <h4>Напишіть нам</h4>
 <div class="chips" id="types"></div>
 <div class="chips" id="acts" style="margin-top:8px"></div>
+<select id="rcomm" style="width:100%;margin-top:12px;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:16px;font-size:16px"></select>
 <input type="text" id="place" placeholder="Район або орієнтир, інша важлива інформація.">
 <button class="send" id="send">Надіслати</button>
-<h4 style="margin-top:34px">Або запишіть голосом</h4>
-<div class="timer" id="timer">00:00.00</div>
-<button class="mic" id="mic">🎙️</button>
 </section>
 <section id="tab-acc" class="hide">
 <div class="card"><h3>Про додаток</h3><div style="color:var(--muted);font-size:19px;line-height:1.4">Оперативна інформація про загрози для Запоріжжя та населених пунктів Запорізького району.</div></div>
-<div class="card"><h3>Наші партнери</h3>
-<div style="color:var(--muted);font-size:18px;margin-bottom:12px">Додаток створений та розвивається завдяки підтримці наших партнерів.</div>
-<div class="links"><a href="#">Запорізька ОВА / Facebook</a><a href="#">Канал «Що? Куди?» / Telegram</a><a href="#">Канал «ЗАГРОЗА: Запоріжжя» / Telegram</a><a href="#">info@example.ua / Email</a></div></div>
+<div class="card"><h3>Важливо</h3><div style="color:var(--muted);font-size:18px;line-height:1.4">Це неофіційний додаток. Дані надходять від користувачів і можуть бути неточними. Завжди слідкуйте за офіційними повідомленнями та сигналами тривоги.</div></div>
 <div class="card"><h3>Для відгуків</h3><div style="color:var(--muted);font-size:18px">Є ідеї, побажання чи зауваження щодо роботи додатку? Напишіть нам.</div></div>
 </section>
 </div>
@@ -118,7 +113,16 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="line"><span>Тембр (нижче = грубіше)</span><input type="range" id="pitchR" min="0.1" max="1" step="0.05" style="width:48%"></div>
 <div class="line"><span>Швидкість</span><input type="range" id="rateR" min="0.6" max="1.2" step="0.05" style="width:48%"></div>
 <button class="send ready" id="testBtn">🔔 Перевірити голос</button>
-<div class="demo" style="text-align:left;margin-top:10px">Голос за замовчуванням чоловічий (якщо його немає на телефоні, використовується низький тембр). Працює, поки додаток відкритий. Режим «Не гасити екран» тримає екран увімкненим, щоб звук не зникав. Для заблокованого телефону потрібні системні push-сповіщення (див. нижче в чаті).</div>
+<div class="demo" style="text-align:left;margin-top:10px">Голос за замовчуванням чоловічий (якщо його немає на телефоні, використовується низький тембр). Працює, поки додаток відкритий. Режим «Не гасити екран» тримає екран увімкненим, щоб звук не зникав.</div>
+<div class="sec">Джерела даних</div>
+<div class="demo" style="text-align:left;margin:0 0 6px">Публічні Telegram-канали, по одному на рядок (наприклад: nazva_kanalu, без @ і посилання). Додаток сам читає нові повідомлення й оповіщає про загрози в обраних громадах.</div>
+<textarea id="srcList" rows="4" placeholder="назва_каналу_1&#10;назва_каналу_2"></textarea>
+<button class="send ready" id="srcSave">Зберегти джерела</button>
+<div class="demo" id="srcStat" style="text-align:left;margin:6px 0;white-space:pre-line">Джерел немає</div>
+<div class="sec">Підключення до сервера</div>
+<textarea id="fbcfg" rows="5" placeholder="Вставте firebaseConfig із консолі Firebase"></textarea>
+<button class="send ready" id="fbSave">Підключити</button>
+<div class="demo" id="srvStat" style="text-align:left;margin:6px 0">Сервер не підключено</div>
 <div class="sec">Розклад голосових сповіщень</div>
 <div class="line"><span>Розклад сповіщень увімкнено</span><button class="sw" id="schSw"></button></div>
 <div class="line"><span>Початок сповіщень</span><input type="time" id="t1" value="04:00"></div>
@@ -139,19 +143,20 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <script>
 window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
 var COMM=["Запоріжжя","Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця"];
-var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85};
+var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua"};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
 function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}}
 var $=function(i){return document.getElementById(i)};
-var feed=[
-{type:"Загроза FPV",ic:"🛸",ev:[["07:48","g","Впав з детонацією"],["07:45","s","Шевченківський р-н"],["07:38","s","Балабине"]]},
-{type:"Загроза FPV",ic:"🛸",ev:[["07:43","g","Вилетів за межі району"],["07:35","s","Кушугум"]]},
-{type:"Загроза шахедів",ic:"✈️",ev:[["06:12","g","Впав в акваторії"],["06:05","s","Нижня Хортиця"],["05:58","s","Дніпровський р-н"]]}
-];
+var srvFeed=[],chFeed={},srvState="off";function allFeed(){var r=srvFeed.slice();Object.keys(chFeed).forEach(function(k){r=r.concat(chFeed[k])});return r.sort(function(a,b){return b.ms-a.ms})}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+var ICONS={"Загроза FPV":"🛸","Загроза шахедів":"✈️","Артобстріл":"💥","Ракета":"🚀","КАБ":"💣"};
+var TLABEL={"FPV":"Загроза FPV","Шахед":"Загроза шахедів","Артобстріл":"Артобстріл","Ракета":"Ракета","КАБ":"КАБ"};
+function hm(d){return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)}
 function renderFeed(){
-$("feed").innerHTML=feed.map(function(c){
-return '<div class="card"><h3><span class="ic">'+c.ic+'</span>'+c.type+'</h3>'+c.ev.map(function(e){
-return '<div class="row"><span class="dot '+e[1]+'"></span><span class="t">'+e[0]+'</span>'+e[2]+'</div>'}).join("")+'</div>'}).join("");
+var list=allFeed().filter(function(r){return !r.comm||ST.comm.indexOf(r.comm)>-1});
+if(!list.length){var on=srvState==="on"||srcs().length>0;$("feed").innerHTML='<div class="card"><h3>'+(on?"Активних загроз немає":"Немає джерел даних")+'</h3><div class="row" style="color:var(--muted)">'+(on?"Нові повідомлення з’являться тут автоматично.":"Налаштування → Джерела даних.")+'</div></div>';return}
+$("feed").innerHTML=list.map(function(r){
+return '<div class="card"><h3><span class="ic">'+(ICONS[r.type]||"📍")+'</span>'+esc(r.type)+'</h3><div class="row"><span class="dot g"></span><span class="t">'+r.t+'</span>'+esc(r.action)+'</div>'+(r.place||r.comm?'<div class="row"><span class="dot s"></span><span class="t">'+r.t+'</span>'+esc([r.place,r.comm].filter(Boolean).join(" · "))+'</div>':'')+'</div>'}).join("");
 }
 function renderHromady(){
 $("hcount").textContent=ST.comm.length;
@@ -169,7 +174,7 @@ document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("
 $("hromady").onclick=function(){$("hmodal").classList.add("open")};
 $("setBtn").onclick=function(){$("smodal").classList.add("open")};
 document.querySelectorAll("[data-close]").forEach(function(b){b.onclick=function(){b.closest(".modal").classList.remove("open")}});
-$("hlist").onclick=function(e){var c=e.target.dataset.c;if(!c)return;var i=ST.comm.indexOf(c);if(i>-1)ST.comm.splice(i,1);else ST.comm.push(c);save();renderHromady()};
+$("hlist").onclick=function(e){var c=e.target.dataset.c;if(!c)return;var i=ST.comm.indexOf(c);if(i>-1)ST.comm.splice(i,1);else ST.comm.push(c);save();renderHromady();renderFeed()};
 $("soundSw").onclick=function(){ST.sound=!ST.sound;save();applySw()};
 $("schSw").onclick=function(){ST.sch=!ST.sch;save();applySw()};
 $("silSw").onclick=function(){ST.sil=!ST.sil;save();applySw()};
@@ -182,22 +187,19 @@ Array.prototype.forEach.call($(id).children,function(b){b.onclick=function(){set
 function chk(){$("send").classList.toggle("ready",!!(selT&&selA))}
 chips("types",TYPES,function(){return selT},function(v){selT=v});
 chips("acts",ACTS,function(){return selA},function(v){selA=v});
-$("send").onclick=function(){
+$("send").onclick=async function(){
 if(!selT||!selA)return;
-var d=new Date(),t=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2),p=$("place").value.trim();
-var ev=[[t,"g",selA]];if(p)ev.push([t,"s",p]);
-feed.unshift({type:"Загроза "+selT+" (ваше повідомлення)",ic:"📍",ev:ev});
-renderFeed();selT=selA=null;$("place").value="";
+if(!db||!FS){toast("Спершу підключіть сервер: Налаштування → Підключення");return}
+var last=+localStorage.getItem("zplast")||0;
+if(Date.now()-last<60000){toast("Зачекайте хвилину перед наступним повідомленням");return}
+var p=$("place").value.trim().slice(0,140),cm=$("rcomm").value;
+try{await FS.addDoc(FS.collection(db,"reports"),{type:TLABEL[selT]||selT,action:selA,place:p,comm:cm,ts:FS.serverTimestamp()});
+try{localStorage.setItem("zplast",String(Date.now()))}catch(e){}
+selT=selA=null;$("place").value="";
 chips("types",TYPES,function(){return selT},function(v){selT=v});chips("acts",ACTS,function(){return selA},function(v){selA=v});chk();
-document.querySelector('nav button[data-t="feed"]').click();
-};
-var rt=null,t0=0;
-$("mic").onclick=function(){
-if(rt){clearInterval(rt);rt=null;$("mic").classList.remove("rec");$("mic").textContent="🎙️";return}
-t0=Date.now();$("mic").classList.add("rec");$("mic").textContent="⏹";
-rt=setInterval(function(){var ms=Date.now()-t0,m=Math.floor(ms/60000),s=Math.floor(ms/1000)%60,c=Math.floor(ms/10)%100;
-$("timer").textContent=("0"+m).slice(-2)+":"+("0"+s).slice(-2)+"."+("0"+c).slice(-2)},50)};
-var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито"].concat(COMM);
+toast("Повідомлення надіслано");document.querySelector('nav button[data-t="feed"]').click()}
+catch(e){toast("Не вдалось надіслати: "+(e.code||e.message))}};
+var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито","Ракета","КАБ"].concat(COMM);
 function dbOpen(cb){try{var r=indexedDB.open("zpvoice",1);r.onupgradeneeded=function(){r.result.createObjectStore("c")};
 r.onsuccess=function(){DB=r.result;cb()};r.onerror=function(){cb()}}catch(e){cb()}}
 function dbPut(k,b){try{if(DB)DB.transaction("c","readwrite").objectStore("c").put(b,k)}catch(e){}}
@@ -256,24 +258,71 @@ function mins(v){var a=v.split(":");return (+a[0])*60+(+a[1])}
 function inSchedule(){if(!ST.sch)return true;var d=new Date(),n=d.getHours()*60+d.getMinutes(),a=mins(ST.t1),b=mins(ST.t2);return a<=b?(n>=a&&n<=b):(n>=a||n<=b)}
 function notify(title,body){if(!ST.notif||!("Notification" in window)||Notification.permission!=="granted")return;
 try{new Notification(title,{body:body,requireInteraction:true,vibrate:[300,150,300,150,600],tag:"threat-"+Date.now()})}catch(e){}}
-function fireAlert(type,ic,place,action,comm){
-var d=new Date(),t=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
-feed.unshift({type:type,ic:ic,ev:[[t,"g",action],[t,"s",place]]});renderFeed();
-var text="Увага! "+type+". "+place+". "+action+".";
-if(ST.sound&&inSchedule()){if(navigator.vibrate)navigator.vibrate([300,150,300,150,600]);var ks=["Увага",type,comm,action];if(clips[type]&&clips[action]){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
-notify(type,place+" — "+action);
+function announce(type,place,action,comm){
+var text="Увага! "+type+". "+(comm||place||"")+". "+action+".";
+if(ST.sound&&inSchedule()){if(navigator.vibrate)navigator.vibrate([300,150,300,150,600]);
+var ks=["Увага",type,comm,action];if(clips[type]&&clips[action]){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
+notify(type,(place||comm||"")+" — "+action);
 }
-var SCEN=[["Загроза FPV","🛸","Балабине, Центр села","Виявлено","Балабине"],
-["Загроза шахедів","✈️","Нижня Хортиця","Падіння","Нижня Хортиця"],
-["Загроза FPV","🛸","Кушугум, околиця","Детонація","Кушугум"],
-["Артобстріл","💥","Шевченківський район","Виявлено","Запоріжжя"],
-["Загроза FPV","🛸","Новоолександрівка","Виявлено","Новоолександрівка"],
-["Загроза шахедів","✈️","Малокатеринівка","Виявлено","Малокатеринівка"],
-["Артобстріл","💥","Комишуваха","Падіння","Комишуваха"]];
-$("simBtn").onclick=function(){unlockAudio();
-var pool=SCEN.filter(function(x){return ST.comm.indexOf(x[4])>-1});
-if(!pool.length){alert("Оберіть хоча б одну громаду");return}
-var x=pool[Math.floor(Math.random()*pool.length)];fireAlert(x[0],x[1],x[2],x[3],x[4])};
+function srcs(){return String(ST.src||"").split(/[\s,]+/).map(function(x){return x.replace(/^.*t\.me\/(s\/)?/,"").replace(/^@/,"").replace(/[^\w]/g,"")}).filter(Boolean).filter(function(x,i,a){return a.indexOf(x)===i}).slice(0,15)}
+var NB="(?<![а-яіїєґa-z])",NE="(?![а-яіїєґa-z])";
+function R(w){return new RegExp(NB+"(?:"+w+")",'i')}
+var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза шахедів",R("шахед|shahed|герань|геран|бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|приліт|артилері|міномет|смерч")]];
+var RC=[["Балабине",R("балабин")],["Новоолександрівка",R("новоолександрів")],["Малокатеринівка",R("малокатерин")],["Комишуваха",R("комишува")],["Кушугум",R("кушуг")],["Нижня Хортиця",R("хортиц")],["Запоріжжя",R("запоріж|запорізьк")]];
+var RA=[["Збито",R("збит|знищен|збили")],["Детонація",R("детонац|вибух")],["Падіння",R("падін|влуч|приліт")]];
+function classify(text){var type=null,comm=null,action="Виявлено",i;
+for(i=0;i<RT.length;i++)if(RT[i][1].test(text)){type=RT[i][0];break}
+if(!type)return null;
+for(i=0;i<RC.length;i++)if(RC[i][1].test(text)){comm=RC[i][0];break}
+if(!comm)return null;
+for(i=0;i<RA.length;i++)if(RA[i][1].test(text)){action=RA[i][0];break}
+return {type:type,comm:comm,action:action}}
+function parseTg(html){var doc=new DOMParser().parseFromString(html,"text/html"),out=[];
+doc.querySelectorAll(".tgme_widget_message").forEach(function(m){var id=m.getAttribute("data-post"),t=m.querySelector(".tgme_widget_message_text"),tm=m.querySelector("time");
+if(!id||!t)return;var ms=tm&&tm.getAttribute("datetime")?Date.parse(tm.getAttribute("datetime")):Date.now();
+out.push({id:id,text:t.textContent.replace(/\s+/g," ").trim(),ms:isNaN(ms)?Date.now():ms})});return out}
+var ANN={};try{ANN=JSON.parse(localStorage.getItem("zpann")||"{}")}catch(e){}
+function saveAnn(){try{var k=Object.keys(ANN);if(k.length>400)k.slice(0,k.length-400).forEach(function(x){delete ANN[x]});localStorage.setItem("zpann",JSON.stringify(ANN))}catch(e){}}
+var srcMsg={};
+function showSrc(){var l=srcs();$("srcStat").textContent=l.length?l.map(function(c){return c+": "+(srcMsg[c]||"…")}).join("\n"):"Джерел немає"}
+async function pollOne(ch){
+try{
+var r=await fetch("https://t.me/s/"+encodeURIComponent(ch)+"?_="+Date.now());
+if(!r.ok)throw new Error("HTTP "+r.status);
+var msgs=parseTg(await r.text()),now=Date.now(),items=[],n=0;
+if(!msgs.length)throw new Error("канал не знайдено або закритий");
+msgs.forEach(function(m){var c=classify(m.text);if(!c)return;n++;
+if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch});
+if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm)}});
+saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;
+}catch(e){srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
+showSrc();renderFeed()}
+function pollAll(){var l=srcs();Object.keys(chFeed).forEach(function(k){if(l.indexOf(k)<0)delete chFeed[k]});l.forEach(pollOne);showSrc();renderFeed()}
+setInterval(function(){if(!document.hidden)pollAll()},30000);
+document.addEventListener("visibilitychange",function(){if(!document.hidden)pollAll()});
+$("srcSave").onclick=function(){unlockAudio();ST.src=$("srcList").value;save();srcMsg={};pollAll()};
+var DEFAULT_FB="";
+var FS=null,db=null,first=true,unsub=null;
+function setSrv(t){var e=$("srvStat");if(e)e.textContent=t}
+function parseCfg(t){var c={},m,re=/["']?(\w+)["']?\s*:\s*["']([^"']*)["']/g;while((m=re.exec(t||"")))c[m[1]]=m[2];return (c.apiKey&&c.projectId)?c:null}
+async function connect(){
+var c=parseCfg(ST.fb||DEFAULT_FB);
+if(!c){srvState="off";setSrv("Сервер не підключено");renderFeed();return}
+setSrv("Підключення…");
+try{
+var A=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+var F=await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+FS=F;var app=A.getApps().length?A.getApp():A.initializeApp(c);db=F.getFirestore(app);
+if(unsub)unsub();first=true;
+var q=F.query(F.collection(db,"reports"),F.where("ts",">",new Date(Date.now()-6*3600*1000)),F.orderBy("ts","desc"),F.limit(50));
+unsub=F.onSnapshot(q,function(snap){
+srvFeed=snap.docs.map(function(d){var x=d.data(),dt=x.ts&&x.ts.toDate?x.ts.toDate():new Date();return {type:x.type,action:x.action,place:x.place,comm:x.comm,t:hm(dt),ms:dt.getTime()}});
+if(!first){snap.docChanges().forEach(function(ch){if(ch.type==="added"&&!ch.doc.metadata.hasPendingWrites){var x=ch.doc.data();if(!x.comm||ST.comm.indexOf(x.comm)>-1)announce(x.type,x.place,x.action,x.comm)}})}
+first=false;srvState="on";setSrv("✅ Підключено");renderFeed()},
+function(err){srvState="off";setSrv("Помилка: "+(err.code||err.message));renderFeed()});
+}catch(e){srvState="off";setSrv("Не вдалось підключитись: "+e.message);renderFeed()}
+}
+$("fbSave").onclick=function(){unlockAudio();ST.fb=$("fbcfg").value;save();connect()};
 $("testBtn").onclick=function(){unlockAudio();var ks=["Увага","Загроза FPV","Запоріжжя","Виявлено"];if(clips["Загроза FPV"]&&clips["Виявлено"])playClips(ks.filter(function(k){return clips[k]}));else speak("Увага! Загроза FPV. Запоріжжя. Виявлено. Це перевірка голосу.")};
 async function setWake(on){
 try{if(on&&"wakeLock" in navigator){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",function(){wl=null})}
@@ -290,6 +339,7 @@ $("voiceSel").onchange=function(){ST.voiceName=this.value;save();pickVoice()};
 document.addEventListener("click",unlockAudio,{once:true});
 if(ST.wake)setWake(true);
 renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
+$("rcomm").innerHTML=COMM.map(function(c){return '<option>'+c+'</option>'}).join("");$("fbcfg").value=ST.fb||"";$("srcList").value=ST.src||"";connect();pollAll();
 </script>
 </body>
 </html>
