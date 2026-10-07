@@ -146,7 +146,7 @@ window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.css
 var COMM=["Запоріжжя","Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця"];
 var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua"};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
-function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}}
+function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{configureNative()}catch(e){}}
 var $=function(i){return document.getElementById(i)};
 var srvFeed=[],chFeed={},srvState="off";function allFeed(){var r=srvFeed.slice();Object.keys(chFeed).forEach(function(k){r=r.concat(chFeed[k])});return r.sort(function(a,b){return b.ms-a.ms})}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
@@ -238,7 +238,7 @@ var MALE=/ostap|остап|male|man\b|чолов|pavel|dmitry|yuri|maxim|aleksan
 function allVoices(){if(!("speechSynthesis" in window))return [];var v=speechSynthesis.getVoices();
 var uk=v.filter(function(x){return /^uk/i.test(x.lang)}),ru=v.filter(function(x){return /^ru/i.test(x.lang)});return uk.concat(ru)}
 function isMale(v){return v&&MALE.test(v.name)}
-function pickVoice(){if(nTTS())return;var list=allVoices();setStat(list.length?("Знайдено голосів: "+list.length):"Українських голосів на пристрої не знайдено — буде голос за замовчуванням");
+function pickVoice(){if(CP("Alerts")){setStat("Голос: системний Android. Тембр і швидкість — повзунками нижче.");var vs=$("voiceSel");if(vs)vs.innerHTML="<option>Системний голос Android</option>";return}if(nTTS())return;var list=allVoices();setStat(list.length?("Знайдено голосів: "+list.length):"Українських голосів на пристрої не знайдено — буде голос за замовчуванням");
 voice=list.filter(function(x){return x.name===ST.voiceName})[0]||list.filter(isMale)[0]||list[0]||null;
 var sel=$("voiceSel");if(sel){sel.innerHTML=list.length?list.map(function(x){return '<option value="'+x.name+'"'+(voice&&x.name===voice.name?" selected":"")+'>'+x.name+(isMale(x)?" ♂":"")+'</option>'}).join(""):'<option>Голос за замовчуванням</option>'}}
 if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=pickVoice}
@@ -249,6 +249,8 @@ var vstat="";
 function setStat(t){vstat=t;var e=$("vstat");if(e)e.textContent=t}
 function toast(t){var d=document.createElement("div");d.textContent=t;d.style.cssText="position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top,0px));z-index:99;background:var(--acc);color:#111;padding:14px 16px;border-radius:16px;font-size:16px;font-weight:600;text-align:center";document.body.appendChild(d);setTimeout(function(){d.remove()},4500)}
 function speak(text,tryN){tryN=tryN||0;
+var A0=CP("Alerts");
+if(A0&&tryN===0){setStat("🔊 Озвучується (системний голос Android)");tryp(function(){return A0.speak({text:text})});return}
 var T=nTTS();
 if(T&&tryN===0){var o={text:text,lang:"uk-UA",rate:ST.rate,pitch:ST.pitch,volume:1,queueStrategy:0};if(ST.nvoice>=0)o.voice=ST.nvoice;
 setStat("🔊 Озвучується (системний голос)");
@@ -271,6 +273,7 @@ if(L){tryp(function(){return L.schedule({notifications:[{id:Math.floor(Date.now(
 if(!ST.notif||!("Notification" in window)||Notification.permission!=="granted")return;
 try{new Notification(title,{body:body,requireInteraction:true,vibrate:[300,150,300,150,600],tag:"threat-"+Date.now()})}catch(e){}}
 function announce(type,place,action,comm){
+if(CP("Alerts")&&ST.bg)return;
 var text="Увага! "+type+". "+(comm||place||"")+". "+action+".";
 if(ST.sound&&inSchedule()){if(navigator.vibrate)navigator.vibrate([300,150,300,150,600]);
 var ks=["Увага",type,comm,action];if(clips[type]&&clips[action]){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
@@ -350,17 +353,13 @@ if(!("Notification" in window)){alert("Браузер не підтримує с
 if(!ST.notif){var r=Notification.permission==="granted"?"granted":await Notification.requestPermission();ST.notif=(r==="granted")}else ST.notif=false;
 save();applySw()};
 $("bgSw").onclick=function(){ST.bg=!ST.bg;save();applySw();applyBg()};
-function applyBg(){var B=CP("BackgroundMode");if(!B)return;
-if(ST.bg){tryp(function(){return B.setSettings&&B.setSettings({title:"Загрози Запоріжжя",text:"Стежимо за загрозами",subText:"Працює у фоні",silent:false,hidden:false,resume:true,channelName:"Фонова робота"})});
-tryp(function(){return B.enable&&B.enable()});tryp(function(){return B.disableWebViewOptimizations&&B.disableWebViewOptimizations()})}
-else tryp(function(){return B.disable&&B.disable()})}
-async function loadNVoices(){var T=nTTS();if(!T||!T.getSupportedVoices)return;
-try{var r=await T.getSupportedVoices();var v=(r.voices||[]).map(function(x,i){return {i:i,n:x.name||x.voiceURI||("голос "+i),l:x.lang||""}}).filter(function(x){return /^(uk|ru)/i.test(x.l)});
-$("voiceSel").innerHTML='<option value="-1">Системний за замовчуванням</option>'+v.map(function(x){return '<option value="'+x.i+'"'+(ST.nvoice===x.i?" selected":"")+'>'+esc(x.n)+' ('+esc(x.l)+')</option>'}).join("");
-setStat("Системних голосів: "+v.length)}catch(e){}}
-async function nativeInit(){if(!isNative())return;var L=CP("LocalNotifications");
-if(L){try{await L.requestPermissions()}catch(e){}try{await L.createChannel({id:"threat",name:"Загрози",description:"Оповіщення про загрози",importance:5,visibility:1,vibration:true,lights:true})}catch(e){}}
-loadNVoices();applyBg()}
+function configureNative(){var A=CP("Alerts");if(!A)return;
+tryp(function(){return A.configure({enabled:!!ST.bg,src:srcs(),comm:ST.comm,sound:!!ST.sound,sch:!!ST.sch,t1:ST.t1,t2:ST.t2,pitch:ST.pitch,rate:ST.rate})})}
+function applyBg(){configureNative();var A=CP("Alerts");
+if(A&&ST.bg){tryp(function(){return A.askPermissions()});setTimeout(function(){tryp(function(){return A.batterySettings()})},1500)}}
+async function nativeInit(){if(!isNative())return;var A=CP("Alerts");if(!A)return;
+if(!ST.asked){ST.asked=true;save();tryp(function(){return A.askPermissions()});setTimeout(function(){tryp(function(){return A.batterySettings()})},2000)}
+configureNative()}
 $("pitchR").value=ST.pitch;$("rateR").value=ST.rate;
 $("pitchR").oninput=function(){ST.pitch=+this.value;save()};$("rateR").oninput=function(){ST.rate=+this.value;save()};
 $("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voiceName=this.value}save();pickVoice()};
