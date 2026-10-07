@@ -157,11 +157,14 @@ jobs:
           import android.os.IBinder;
           import android.os.PowerManager;
           import android.speech.tts.TextToSpeech;
+          import android.speech.tts.UtteranceProgressListener;
           import androidx.core.app.NotificationCompat;
           import java.io.BufferedReader;
           import java.io.InputStreamReader;
           import java.net.HttpURLConnection;
           import java.net.URL;
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
           import java.util.ArrayList;
           import java.util.Calendar;
           import java.util.Collections;
@@ -233,18 +236,31 @@ jobs:
 
               @Override
               public void onInit(int status) {
-                  if (status != TextToSpeech.SUCCESS) return;
+                  if (status != TextToSpeech.SUCCESS) {
+                      setSt("tts", "голосовий рушій не запустився (код " + status + ")");
+                      return;
+                  }
+                  String lang = "мову не знайдено";
                   try {
-                      int r = tts.setLanguage(new Locale("uk", "UA"));
-                      if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
-                          tts.setLanguage(new Locale("ru", "RU"));
+                      Locale[] cands = { new Locale("uk", "UA"), new Locale("ru", "RU") };
+                      boolean ok = false;
+                      for (Locale l : cands) {
+                          int r = tts.setLanguage(l);
+                          if (r >= 0) { lang = l.getLanguage(); ok = true; break; }
                       }
+                      if (!ok) lang = "немає української й російської, встановіть голос у налаштуваннях Android";
                       AudioAttributes aa = new AudioAttributes.Builder()
-                          .setUsage(AudioAttributes.USAGE_ALARM)
+                          .setUsage(AudioAttributes.USAGE_MEDIA)
                           .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                           .build();
                       tts.setAudioAttributes(aa);
+                      tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                          @Override public void onStart(String id) { setSt("tts", "говорить"); }
+                          @Override public void onDone(String id) { setSt("tts", "озвучено"); }
+                          @Override public void onError(String id) { setSt("tts", "помилка озвучки"); }
+                      });
                   } catch (Exception e) { }
+                  setSt("tts", "готовий, мова: " + lang);
                   ttsReady = true;
                   synchronized (pending) {
                       for (String t : pending) speakNow(t);
@@ -294,10 +310,14 @@ jobs:
                   while (running) {
                       Cfg c = Cfg.load(this);
                       if (c.enabled) {
+                          int okN = 0, total = 0;
+                          String lastErr = "";
                           for (String ch : c.src) {
                               if (!running) break;
-                              try { poll(c, ch); } catch (Exception e) { }
+                              total++;
+                              try { poll(c, ch); okN++; } catch (Exception e) { lastErr = ch + ": " + e.getMessage(); }
                           }
+                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + total + (lastErr.length() > 0 ? "; помилка " + lastErr : ""));
                       } else if (System.currentTimeMillis() - lastSpeak > 20000) {
                           stopSelf();
                           return;
@@ -375,8 +395,13 @@ jobs:
                       Cfg c = Cfg.load(this);
                       tts.setPitch(c.pitch);
                       tts.setSpeechRate(c.rate);
-                      tts.speak(text, TextToSpeech.QUEUE_ADD, null, "zp" + System.nanoTime());
+                      int res = tts.speak(text, TextToSpeech.QUEUE_ADD, null, "zp" + System.nanoTime());
+                      if (res != TextToSpeech.SUCCESS) setSt("tts", "speak повернув помилку " + res);
                   } catch (Exception e) { }
+              }
+
+              private void setSt(String k, String v) {
+                  try { getSharedPreferences(PREFS, 0).edit().putString(k, v).apply(); } catch (Exception e) { }
               }
 
               private void loadAnnounced() {
@@ -459,11 +484,13 @@ jobs:
           import android.Manifest;
           import android.content.Context;
           import android.content.Intent;
+          import android.content.SharedPreferences;
           import android.net.Uri;
           import android.os.Build;
           import android.provider.Settings;
           import androidx.core.app.ActivityCompat;
           import androidx.core.content.ContextCompat;
+          import com.getcapacitor.JSObject;
           import com.getcapacitor.Plugin;
           import com.getcapacitor.PluginCall;
           import com.getcapacitor.PluginMethod;
@@ -526,6 +553,33 @@ jobs:
                   } catch (Exception e) {
                       try {
                           Intent j = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                          j.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          getContext().startActivity(j);
+                      } catch (Exception e2) { }
+                  }
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void status(PluginCall call) {
+                  JSObject r = new JSObject();
+                  try {
+                      SharedPreferences p = getContext().getSharedPreferences("zp", 0);
+                      r.put("tts", p.getString("tts", "ще не запускався"));
+                      r.put("svc", p.getString("svc", "ще не перевіряла"));
+                  } catch (Exception e) { }
+                  call.resolve(r);
+              }
+
+              @PluginMethod
+              public void ttsSettings(PluginCall call) {
+                  try {
+                      Intent i = new Intent("com.android.settings.TTS_SETTINGS");
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      getContext().startActivity(i);
+                  } catch (Exception e) {
+                      try {
+                          Intent j = new Intent(Settings.ACTION_SETTINGS);
                           j.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                           getContext().startActivity(j);
                       } catch (Exception e2) { }
