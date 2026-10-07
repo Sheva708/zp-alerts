@@ -143,7 +143,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 </div></div>
 <script>
 window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
-var COMM=["Запоріжжя","Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця"];
+var GROUPS=[["🏙 Обласний центр та передмістя",["Запоріжжя","Балабине","Кушугум","Малокатеринівка","Нижня Хортиця","Новоолександрівка"]],["💥 Прифронтова зона",["Оріхів","Гуляйполе","Степногірськ","Мала Токмачка","Преображенка"]],["🚜 Запорізький район",["Вільнянськ","Комишуваха","Широке","Біленьке","Долинське","Матвіївка","Новомиколаївка","Воздвижівка","Михайлівка","Павлівка","Петро-Михайлівка","Степне","Тернувате"]]],COMM=[].concat.apply([],GROUPS.map(function(g){return g[1]}));
 var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua"};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
 function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{configureNative()}catch(e){}}
@@ -161,8 +161,8 @@ return '<div class="card"><h3><span class="ic">'+(ICONS[r.type]||"📍")+'</span
 }
 function renderHromady(){
 $("hcount").textContent=ST.comm.length;
-$("hlist").innerHTML=COMM.map(function(c){var on=ST.comm.indexOf(c)>-1;
-return '<div class="line"><span>'+c+'</span><button class="sw'+(on?" on":"")+'" data-c="'+c+'"></button></div>'}).join("");
+$("hlist").innerHTML=GROUPS.map(function(g){return '<div class="sec" style="margin:16px 0 4px;font-size:16px">'+g[0]+'</div>'+g[1].map(function(c){var on=ST.comm.indexOf(c)>-1;
+return '<div class="line"><span>'+c+'</span><button class="sw'+(on?" on":"")+'" data-c="'+c+'"></button></div>'}).join("")}).join("");
 }
 function applyTheme(){var r=document.documentElement;if(ST.theme==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",ST.theme);
 Array.prototype.forEach.call($("theme").children,function(b){b.classList.toggle("on",b.dataset.v===ST.theme)})}
@@ -282,8 +282,8 @@ notify(type,(place||comm||"")+" — "+action);
 function srcs(){return String(ST.src||"").split(/[\s,]+/).map(function(x){return x.replace(/^.*t\.me\/(s\/)?/,"").replace(/^@/,"").replace(/[^\w]/g,"")}).filter(Boolean).filter(function(x,i,a){return a.indexOf(x)===i}).slice(0,15)}
 var NB="(?<![а-яіїєґa-z])",NE="(?![а-яіїєґa-z])";
 function R(w){return new RegExp(NB+"(?:"+w+")",'i')}
-var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза шахедів",R("шахед|shahed|герань|геран|бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|приліт|артилері|міномет|смерч")]];
-var RC=[["Балабине",R("балабин")],["Новоолександрівка",R("новоолександрів")],["Малокатеринівка",R("малокатерин")],["Комишуваха",R("комишува")],["Кушугум",R("кушуг")],["Нижня Хортиця",R("хортиц")],["Запоріжжя",R("запоріж|запорізьк")]];
+var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза шахедів",R("шахед|shahed|герань|геран|бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")]];
+var RC=[["Балабине",R("балабин")],["Новоолександрівка",R("новоолександрів")],["Малокатеринівка",R("малокатерин")],["Комишуваха",R("комишува")],["Кушугум",R("кушуг")],["Нижня Хортиця",R("хортиц")],["Оріхів",R("оріхів|оріхов")],["Гуляйполе",R("гуляйпол")],["Степногірськ",R("степногірськ")],["Мала Токмачка",R("токмачк")],["Преображенка",R("преображенк")],["Вільнянськ",R("вільнянськ")],["Широке",R("широківськ|широке(?![а-яіїєґa-z])")],["Біленьке",R("біленьк")],["Долинське",R("долинськ")],["Матвіївка",R("матвіївк|матвіївськ")],["Новомиколаївка",R("новомиколаїв")],["Воздвижівка",R("воздвиж")],["Петро-Михайлівка",R("петро-?михайлів")],["Михайлівка",R("михайлівк")],["Павлівка",R("павлівк|павлівськ")],["Степне",R("степненськ|степне(?![а-яіїєґa-z])")],["Тернувате",R("тернуват")],["Запоріжжя",R("запоріж|запорізьк")]];
 var RA=[["Збито",R("збит|знищен|збили")],["Детонація",R("детонац|вибух")],["Падіння",R("падін|влуч|приліт")]];
 function classify(text){var type=null,comm=null,action="Виявлено",i;
 for(i=0;i<RT.length;i++)if(RT[i][1].test(text)){type=RT[i][0];break}
