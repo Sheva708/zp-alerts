@@ -23,14 +23,571 @@ jobs:
         run: |
           npm init -y
           npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
-          npm install @capacitor/local-notifications@6 @capacitor-community/text-to-speech@5 --legacy-peer-deps || echo "WARN: core plugins failed"
-          npm install @anuradev/capacitor-background-mode@6 --legacy-peer-deps || npm install @anuradev/capacitor-background-mode --legacy-peer-deps || echo "WARN: background plugin failed"
           echo '{"appId":"ua.zaporizhzhia.alerts","appName":"Zaporizhzhia Alerts","webDir":"www","plugins":{"CapacitorHttp":{"enabled":true}}}' > capacitor.config.json
           npx cap add android
           npx cap sync android
-      - name: Android permissions
+      - name: Add native alert service
         run: |
-          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />\n    <application#' android/app/src/main/AndroidManifest.xml
+          D=android/app/src/main/java/ua/zaporizhzhia/alerts
+          mkdir -p $D
+          cat > $D/Parser.java <<'ZPEOF'
+          package ua.zaporizhzhia.alerts;
+
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          public class Parser {
+              public static class Msg { public String id; public String text; public long ms; }
+              public static class Res { public String type; public String comm; public String action; }
+
+              private static final Pattern POST = Pattern.compile("<div class=\"tgme_widget_message(?: [^\"]*)?\"[^>]*?data-post=\"([^\"]+)\"");
+              private static final Pattern TEXT = Pattern.compile("<div class=\"tgme_widget_message_text js-message_text\"[^>]*>(.*?)</div>", Pattern.DOTALL);
+              private static final Pattern TIME = Pattern.compile("<time[^>]*datetime=\"([^\"]+)\"");
+
+              private static final String NB = "(?<![\\p{L}])";
+              private static final int FL = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+              private static Pattern r(String w) { return Pattern.compile(NB + "(?:" + w + ")", FL); }
+
+              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл"};
+              private static final Pattern[] TYPE_RE = {
+                  r("fpv|фпв|камікадзе"),
+                  r("шахед|shahed|герань|геран|бпла|безпілотник"),
+                  r("ракет|іскандер|калібр"),
+                  Pattern.compile(NB + "(?:каб|авіабомб)(?![\\p{L}])", FL),
+                  r("обстріл|приліт|артилері|міномет|смерч")
+              };
+              private static final String[] COMM_NAMES = {"Балабине", "Новоолександрівка", "Малокатеринівка", "Комишуваха", "Кушугум", "Нижня Хортиця", "Запоріжжя"};
+              private static final Pattern[] COMM_RE = {
+                  r("балабин"), r("новоолександрів"), r("малокатерин"), r("комишува"), r("кушуг"), r("хортиц"), r("запоріж|запорізьк")
+              };
+              private static final String[] ACT_NAMES = {"Збито", "Детонація", "Падіння"};
+              private static final Pattern[] ACT_RE = {
+                  r("збит|знищен|збили"), r("детонац|вибух"), r("падін|влуч|приліт")
+              };
+
+              public static Res classify(String text) {
+                  if (text == null) return null;
+                  String type = null, comm = null, action = "Виявлено";
+                  for (int i = 0; i < TYPE_RE.length; i++) if (TYPE_RE[i].matcher(text).find()) { type = TYPE_NAMES[i]; break; }
+                  if (type == null) return null;
+                  for (int i = 0; i < COMM_RE.length; i++) if (COMM_RE[i].matcher(text).find()) { comm = COMM_NAMES[i]; break; }
+                  if (comm == null) return null;
+                  for (int i = 0; i < ACT_RE.length; i++) if (ACT_RE[i].matcher(text).find()) { action = ACT_NAMES[i]; break; }
+                  Res res = new Res();
+                  res.type = type; res.comm = comm; res.action = action;
+                  return res;
+              }
+
+              public static List<Msg> parse(String html) {
+                  List<Msg> out = new ArrayList<Msg>();
+                  if (html == null) return out;
+                  Matcher m = POST.matcher(html);
+                  List<String> ids = new ArrayList<String>();
+                  List<int[]> pos = new ArrayList<int[]>();
+                  while (m.find()) { ids.add(m.group(1)); pos.add(new int[]{m.start(), m.end()}); }
+                  for (int i = 0; i < ids.size(); i++) {
+                      int from = pos.get(i)[1];
+                      int to = (i + 1 < ids.size()) ? pos.get(i + 1)[0] : html.length();
+                      String seg = html.substring(from, to);
+                      Matcher t = TEXT.matcher(seg);
+                      if (!t.find()) continue;
+                      String text = clean(t.group(1));
+                      if (text.length() == 0) continue;
+                      long ms = System.currentTimeMillis();
+                      Matcher tm = TIME.matcher(seg);
+                      if (tm.find()) ms = parseTime(tm.group(1));
+                      Msg g = new Msg();
+                      g.id = ids.get(i); g.text = text; g.ms = ms;
+                      out.add(g);
+                  }
+                  return out;
+              }
+
+              static long parseTime(String s) {
+                  try {
+                      String t = s.replaceAll("([+-])(\\d\\d):(\\d\\d)$", "$1$2$3");
+                      SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US);
+                      return f.parse(t).getTime();
+                  } catch (Exception e) {
+                      return System.currentTimeMillis();
+                  }
+              }
+
+              static String clean(String h) {
+                  String s = h.replaceAll("(?i)<br\\s*/?>", " ");
+                  s = s.replaceAll("<[^>]+>", "");
+                  s = unescape(s);
+                  return s.replaceAll("\\s+", " ").trim();
+              }
+
+              static String unescape(String s) {
+                  Matcher m = Pattern.compile("&#(\\d+);|&#[xX]([0-9a-fA-F]+);").matcher(s);
+                  StringBuffer sb = new StringBuffer();
+                  while (m.find()) {
+                      String rep = " ";
+                      try {
+                          int cp = (m.group(1) != null) ? Integer.parseInt(m.group(1)) : Integer.parseInt(m.group(2), 16);
+                          rep = new String(Character.toChars(cp));
+                      } catch (Exception e) { }
+                      m.appendReplacement(sb, Matcher.quoteReplacement(rep));
+                  }
+                  m.appendTail(sb);
+                  return sb.toString().replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&amp;", "&");
+              }
+          }
+          ZPEOF
+          cat > $D/AlertService.java <<'ZPEOF'
+          package ua.zaporizhzhia.alerts;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.ServiceInfo;
+          import android.media.AudioAttributes;
+          import android.os.Build;
+          import android.os.IBinder;
+          import android.os.PowerManager;
+          import android.speech.tts.TextToSpeech;
+          import androidx.core.app.NotificationCompat;
+          import java.io.BufferedReader;
+          import java.io.InputStreamReader;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.util.ArrayList;
+          import java.util.Calendar;
+          import java.util.Collections;
+          import java.util.Iterator;
+          import java.util.LinkedHashSet;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.Set;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          public class AlertService extends Service implements TextToSpeech.OnInitListener {
+              static final String CH_BG = "zp_bg";
+              static final String CH_ALERT = "zp_alert";
+              static final String PREFS = "zp";
+
+              static class Cfg {
+                  boolean enabled = false;
+                  boolean sound = true;
+                  boolean sch = false;
+                  String t1 = "04:00";
+                  String t2 = "22:00";
+                  float pitch = 0.5f;
+                  float rate = 0.85f;
+                  List<String> src = new ArrayList<String>();
+                  List<String> comm = new ArrayList<String>();
+
+                  static Cfg load(Context c) {
+                      Cfg cfg = new Cfg();
+                      try {
+                          String js = c.getSharedPreferences(PREFS, 0).getString("cfg", null);
+                          if (js == null) return cfg;
+                          JSONObject o = new JSONObject(js);
+                          cfg.enabled = o.optBoolean("enabled", false);
+                          cfg.sound = o.optBoolean("sound", true);
+                          cfg.sch = o.optBoolean("sch", false);
+                          cfg.t1 = o.optString("t1", "04:00");
+                          cfg.t2 = o.optString("t2", "22:00");
+                          cfg.pitch = (float) o.optDouble("pitch", 0.5);
+                          cfg.rate = (float) o.optDouble("rate", 0.85);
+                          JSONArray a = o.optJSONArray("src");
+                          if (a != null) for (int i = 0; i < a.length(); i++) cfg.src.add(a.optString(i));
+                          JSONArray b = o.optJSONArray("comm");
+                          if (b != null) for (int i = 0; i < b.length(); i++) cfg.comm.add(b.optString(i));
+                      } catch (Exception e) { }
+                      return cfg;
+                  }
+              }
+
+              private volatile boolean running = false;
+              private Thread worker;
+              private TextToSpeech tts;
+              private volatile boolean ttsReady = false;
+              private final List<String> pending = Collections.synchronizedList(new ArrayList<String>());
+              private PowerManager.WakeLock wl;
+              private volatile long lastSpeak = 0;
+              private final Set<String> announced = Collections.synchronizedSet(new LinkedHashSet<String>());
+
+              @Override
+              public IBinder onBind(Intent intent) { return null; }
+
+              @Override
+              public void onCreate() {
+                  super.onCreate();
+                  createChannels();
+                  loadAnnounced();
+                  tts = new TextToSpeech(getApplicationContext(), this);
+              }
+
+              @Override
+              public void onInit(int status) {
+                  if (status != TextToSpeech.SUCCESS) return;
+                  try {
+                      int r = tts.setLanguage(new Locale("uk", "UA"));
+                      if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
+                          tts.setLanguage(new Locale("ru", "RU"));
+                      }
+                      AudioAttributes aa = new AudioAttributes.Builder()
+                          .setUsage(AudioAttributes.USAGE_ALARM)
+                          .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                          .build();
+                      tts.setAudioAttributes(aa);
+                  } catch (Exception e) { }
+                  ttsReady = true;
+                  synchronized (pending) {
+                      for (String t : pending) speakNow(t);
+                      pending.clear();
+                  }
+              }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  Notification n = bgNotification();
+                  try {
+                      if (Build.VERSION.SDK_INT >= 34) {
+                          startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+                      } else {
+                          startForeground(1, n);
+                      }
+                  } catch (Exception e) { }
+                  if (intent != null && "speak".equals(intent.getAction())) {
+                      String t = intent.getStringExtra("text");
+                      if (t != null && t.length() > 0) say(t);
+                  }
+                  if (!running) {
+                      running = true;
+                      try {
+                          PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+                          wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "zp:alerts");
+                          wl.acquire();
+                      } catch (Exception e) { }
+                      worker = new Thread(new Runnable() {
+                          @Override public void run() { loop(); }
+                      });
+                      worker.start();
+                  }
+                  return START_STICKY;
+              }
+
+              @Override
+              public void onDestroy() {
+                  running = false;
+                  try { if (worker != null) worker.interrupt(); } catch (Exception e) { }
+                  try { if (wl != null && wl.isHeld()) wl.release(); } catch (Exception e) { }
+                  try { if (tts != null) { tts.stop(); tts.shutdown(); } } catch (Exception e) { }
+                  super.onDestroy();
+              }
+
+              private void loop() {
+                  while (running) {
+                      Cfg c = Cfg.load(this);
+                      if (c.enabled) {
+                          for (String ch : c.src) {
+                              if (!running) break;
+                              try { poll(c, ch); } catch (Exception e) { }
+                          }
+                      } else if (System.currentTimeMillis() - lastSpeak > 20000) {
+                          stopSelf();
+                          return;
+                      }
+                      try { Thread.sleep(c.enabled ? 30000 : 5000); } catch (InterruptedException e) { break; }
+                  }
+              }
+
+              private void poll(Cfg c, String ch) throws Exception {
+                  String html = fetch("https://t.me/s/" + ch);
+                  List<Parser.Msg> msgs = Parser.parse(html);
+                  long now = System.currentTimeMillis();
+                  for (Parser.Msg m : msgs) {
+                      Parser.Res r = Parser.classify(m.text);
+                      if (r == null) continue;
+                      if (announced.contains(m.id)) continue;
+                      if (now - m.ms > 15 * 60000L) continue;
+                      announced.add(m.id);
+                      saveAnnounced();
+                      if (!c.comm.contains(r.comm)) continue;
+                      announce(c, r);
+                  }
+              }
+
+              private void announce(Cfg c, Parser.Res r) {
+                  if (c.sound && inSchedule(c)) {
+                      say("Увага! " + r.type + ". " + r.comm + ". " + r.action + ".");
+                  }
+                  notifyAlert(r.type, r.comm + " — " + r.action);
+              }
+
+              private boolean inSchedule(Cfg c) {
+                  if (!c.sch) return true;
+                  Calendar cal = Calendar.getInstance();
+                  int n = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE);
+                  int a = mins(c.t1), b = mins(c.t2);
+                  return a <= b ? (n >= a && n <= b) : (n >= a || n <= b);
+              }
+
+              private int mins(String v) {
+                  try {
+                      String[] p = v.split(":");
+                      return Integer.parseInt(p[0]) * 60 + Integer.parseInt(p[1]);
+                  } catch (Exception e) { return 0; }
+              }
+
+              private String fetch(String u) throws Exception {
+                  HttpURLConnection con = (HttpURLConnection) new URL(u).openConnection();
+                  con.setConnectTimeout(10000);
+                  con.setReadTimeout(15000);
+                  con.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36");
+                  try {
+                      if (con.getResponseCode() != 200) throw new Exception("HTTP " + con.getResponseCode());
+                      BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), "UTF-8"));
+                      StringBuilder sb = new StringBuilder();
+                      String line;
+                      while ((line = br.readLine()) != null) {
+                          sb.append(line).append('\n');
+                          if (sb.length() > 3000000) break;
+                      }
+                      br.close();
+                      return sb.toString();
+                  } finally {
+                      con.disconnect();
+                  }
+              }
+
+              private void say(String text) {
+                  lastSpeak = System.currentTimeMillis();
+                  if (ttsReady) speakNow(text); else pending.add(text);
+              }
+
+              private void speakNow(String text) {
+                  try {
+                      Cfg c = Cfg.load(this);
+                      tts.setPitch(c.pitch);
+                      tts.setSpeechRate(c.rate);
+                      tts.speak(text, TextToSpeech.QUEUE_ADD, null, "zp" + System.nanoTime());
+                  } catch (Exception e) { }
+              }
+
+              private void loadAnnounced() {
+                  try {
+                      String js = getSharedPreferences(PREFS, 0).getString("ann", "[]");
+                      JSONArray a = new JSONArray(js);
+                      for (int i = 0; i < a.length(); i++) announced.add(a.optString(i));
+                  } catch (Exception e) { }
+              }
+
+              private void saveAnnounced() {
+                  try {
+                      synchronized (announced) {
+                          while (announced.size() > 400) {
+                              Iterator<String> it = announced.iterator();
+                              it.next();
+                              it.remove();
+                          }
+                          JSONArray a = new JSONArray();
+                          for (String s : announced) a.put(s);
+                          SharedPreferences.Editor ed = getSharedPreferences(PREFS, 0).edit();
+                          ed.putString("ann", a.toString());
+                          ed.apply();
+                      }
+                  } catch (Exception e) { }
+              }
+
+              private void createChannels() {
+                  if (Build.VERSION.SDK_INT < 26) return;
+                  NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                  NotificationChannel bg = new NotificationChannel(CH_BG, "Фонова робота", NotificationManager.IMPORTANCE_LOW);
+                  nm.createNotificationChannel(bg);
+                  NotificationChannel al = new NotificationChannel(CH_ALERT, "Загрози", NotificationManager.IMPORTANCE_HIGH);
+                  al.enableVibration(true);
+                  al.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                  nm.createNotificationChannel(al);
+              }
+
+              private PendingIntent openIntent() {
+                  try {
+                      Intent open = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                      if (open == null) return null;
+                      return PendingIntent.getActivity(this, 0, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                  } catch (Exception e) { return null; }
+              }
+
+              private Notification bgNotification() {
+                  return new NotificationCompat.Builder(this, CH_BG)
+                      .setSmallIcon(android.R.drawable.ic_dialog_info)
+                      .setContentTitle("Загрози Запоріжжя")
+                      .setContentText("Стежимо за загрозами")
+                      .setOngoing(true)
+                      .setPriority(NotificationCompat.PRIORITY_LOW)
+                      .setContentIntent(openIntent())
+                      .build();
+              }
+
+              private void notifyAlert(String title, String body) {
+                  try {
+                      NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                      Notification n = new NotificationCompat.Builder(this, CH_ALERT)
+                          .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                          .setContentTitle(title)
+                          .setContentText(body)
+                          .setPriority(NotificationCompat.PRIORITY_HIGH)
+                          .setCategory(NotificationCompat.CATEGORY_ALARM)
+                          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                          .setDefaults(NotificationCompat.DEFAULT_ALL)
+                          .setAutoCancel(true)
+                          .setContentIntent(openIntent())
+                          .build();
+                      nm.notify((int) (System.currentTimeMillis() % 2000000000L), n);
+                  } catch (Exception e) { }
+              }
+          }
+          ZPEOF
+          cat > $D/AlertsPlugin.java <<'ZPEOF'
+          package ua.zaporizhzhia.alerts;
+
+          import android.Manifest;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.provider.Settings;
+          import androidx.core.app.ActivityCompat;
+          import androidx.core.content.ContextCompat;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+
+          @CapacitorPlugin(name = "Alerts")
+          public class AlertsPlugin extends Plugin {
+
+              private void startSvc(String action, String text) {
+                  Context ctx = getContext();
+                  Intent i = new Intent(ctx, AlertService.class);
+                  if (action != null) {
+                      i.setAction(action);
+                      i.putExtra("text", text);
+                  }
+                  ContextCompat.startForegroundService(ctx, i);
+              }
+
+              @PluginMethod
+              public void configure(PluginCall call) {
+                  try {
+                      String js = call.getData().toString();
+                      getContext().getSharedPreferences("zp", 0).edit().putString("cfg", js).apply();
+                      boolean en = call.getBoolean("enabled", false);
+                      if (en) {
+                          startSvc(null, null);
+                      } else {
+                          getContext().stopService(new Intent(getContext(), AlertService.class));
+                      }
+                  } catch (Exception e) { }
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void speak(PluginCall call) {
+                  try {
+                      String t = call.getString("text", "");
+                      startSvc("speak", t);
+                  } catch (Exception e) { }
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void askPermissions(PluginCall call) {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 33 && getActivity() != null) {
+                          ActivityCompat.requestPermissions(getActivity(), new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1);
+                      }
+                  } catch (Exception e) { }
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void batterySettings(PluginCall call) {
+                  try {
+                      Intent i = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                      i.setData(Uri.parse("package:" + getContext().getPackageName()));
+                      i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                      getContext().startActivity(i);
+                  } catch (Exception e) {
+                      try {
+                          Intent j = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                          j.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          getContext().startActivity(j);
+                      } catch (Exception e2) { }
+                  }
+                  call.resolve();
+              }
+          }
+          ZPEOF
+          cat > $D/BootReceiver.java <<'ZPEOF'
+          package ua.zaporizhzhia.alerts;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import androidx.core.content.ContextCompat;
+          import org.json.JSONObject;
+
+          public class BootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context c, Intent i) {
+                  try {
+                      String js = c.getSharedPreferences("zp", 0).getString("cfg", null);
+                      if (js != null && new JSONObject(js).optBoolean("enabled", false)) {
+                          ContextCompat.startForegroundService(c, new Intent(c, AlertService.class));
+                      }
+                  } catch (Exception e) { }
+              }
+          }
+          ZPEOF
+          cat > $D/MainActivity.java <<'ZPEOF'
+          package ua.zaporizhzhia.alerts;
+
+          import android.os.Bundle;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  registerPlugin(AlertsPlugin.class);
+                  super.onCreate(savedInstanceState);
+              }
+          }
+          ZPEOF
+          python3 - <<'ZPPY'
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p, encoding="utf-8").read()
+          perms = "".join('    <uses-permission android:name="android.permission.%s" />\n' % x for x in [
+              "RECORD_AUDIO", "MODIFY_AUDIO_SETTINGS", "POST_NOTIFICATIONS", "WAKE_LOCK", "VIBRATE",
+              "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_SPECIAL_USE", "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "RECEIVE_BOOT_COMPLETED"])
+          queries = '    <queries>\n        <intent>\n            <action android:name="android.intent.action.TTS_SERVICE" />\n        </intent>\n    </queries>\n'
+          comps = ('        <service android:name="ua.zaporizhzhia.alerts.AlertService" android:exported="false" android:foregroundServiceType="specialUse">\n'
+                   '            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="civil_threat_alerts" />\n'
+                   '        </service>\n'
+                   '        <receiver android:name="ua.zaporizhzhia.alerts.BootReceiver" android:exported="true">\n'
+                   '            <intent-filter>\n                <action android:name="android.intent.action.BOOT_COMPLETED" />\n            </intent-filter>\n'
+                   '        </receiver>\n')
+          assert "<application" in s and "</application>" in s
+          s = s.replace("<application", perms + queries + "    <application", 1)
+          s = s.replace("</application>", comps + "    </application>", 1)
+          open(p, "w", encoding="utf-8").write(s)
+          print(s)
+          ZPPY
       - name: Fixed signing key
         run: |
           mkdir -p ~/.android
@@ -39,14 +596,7 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug || {
-            echo "Build with background plugin failed, retrying without it";
-            cd ..;
-            npm uninstall @anuradev/capacitor-background-mode --legacy-peer-deps || true;
-            npx cap sync android;
-            cd android;
-            ./gradlew assembleDebug;
-          }
+          ./gradlew assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: zaporizhzhia-alerts-apk
