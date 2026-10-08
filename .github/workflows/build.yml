@@ -42,7 +42,7 @@ jobs:
 
           public class Parser {
               public static class Msg { public String id; public String text; public long ms; }
-              public static class Res { public String type; public String comm; public String action; }
+              public static class Res { public String type; public String comm; public String action; public String street = ""; }
 
               private static final Pattern POST = Pattern.compile("<div class=\"tgme_widget_message(?: [^\"]*)?\"[^>]*?data-post=\"([^\"]+)\"");
               private static final Pattern TEXT = Pattern.compile("<div class=\"tgme_widget_message_text js-message_text\"[^>]*>(.*?)</div>", Pattern.DOTALL);
@@ -52,13 +52,14 @@ jobs:
               private static final int FL = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
               private static Pattern r(String w) { return Pattern.compile(NB + "(?:" + w + ")", FL); }
 
-              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл", "Загроза дронів"};
+              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл", "Вибух", "Загроза дронів"};
               private static final Pattern[] TYPE_RE = {
                   r("fpv|фпв|камікадзе"),
                   r("шахед|shahed|герань|геран|бпла|безпілотник"),
                   r("ракет|іскандер|калібр"),
                   Pattern.compile(NB + "(?:каб|авіабомб)(?![\\p{L}])", FL),
                   r("обстріл|артобстріл|приліт|артилері|міномет|смерч"),
+                  r("вибух|детонац|прильот"),
                   r("дрон")
               };
               private static final String[] COMM_NAMES = {"Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця","Оріхів","Гуляйполе","Степногірськ","Мала Токмачка","Преображенка","Вільнянськ","Широке","Біленьке","Долинське","Матвіївка","Новомиколаївка","Воздвижівка","Петро-Михайлівка","Михайлівка","Павлівка","Степне","Тернувате","Запоріжжя"};
@@ -71,8 +72,72 @@ jobs:
               private static final Pattern RAKV = r("акватор");
               private static final Pattern RALL = r("відбій|відбою");
 
+              private static final Pattern RNEG = r("стають|посилюємо|допомагаємо|експерт|аналітик|підсумк|статистик|за ніч|за добу|за минул|протягом доби|станом на|донат|підтримай");
+              private static final Pattern REVT = r("виявлен|летить|летять|літає|літають|напрямк|курсом|група|груп|прилітал|приліт|вибух|детонац|влуч|падін|впав|впал|збит|знищен|обстріл|атак|заходить|заходять|рухається|рухаються|прямує|прямують|над ");
+              private static final String SKW = "(вулиц[яіюе]|вул\\.?|проспект\\p{L}*|просп\\.?|пр-т\\.?|бульвар\\p{L}*|бул\\.?|б-р\\.?|провулок|провулк\\p{L}*|пров\\.?|площ[аіу]|пл\\.|шосе|набережн\\p{L}*|мікрорайон\\p{L}*|мкр\\.?)";
+              private static final String CAPW = "[\\p{L}'’ʼ-]+";
+              private static final Pattern STREET_A = Pattern.compile("(?<![\\p{L}])(?iu:" + SKW + ")\\s+(" + CAPW + "(?:\\s+" + CAPW + ")?)");
+              private static final Pattern STREET_B = Pattern.compile("(" + CAPW + ")\\s+(?iu:" + SKW + ")(?![\\p{L}])");
+
+              static boolean okText(String t) {
+                  if (t.length() > 400 || RNEG.matcher(t).find()) return false;
+                  if (t.length() > 140 && !REVT.matcher(t).find()) return false;
+                  return true;
+              }
+
+              static String normKw(String k) {
+                  k = k.toLowerCase(Locale.ROOT).replace(".", "");
+                  if (k.startsWith("вул")) return "вулиця";
+                  if (k.startsWith("просп") || k.startsWith("пр-т")) return "проспект";
+                  if (k.startsWith("бульв") || k.startsWith("бул") || k.startsWith("б-р")) return "бульвар";
+                  if (k.startsWith("пров")) return "провулок";
+                  if (k.startsWith("площ") || k.startsWith("пл")) return "площа";
+                  if (k.startsWith("шосе")) return "шосе";
+                  if (k.startsWith("набереж")) return "набережна";
+                  if (k.startsWith("мікрор") || k.startsWith("мкр")) return "мікрорайон";
+                  return k;
+              }
+
+              static boolean isCap(String w) {
+                  return w.length() > 0 && Character.isUpperCase(w.codePointAt(0)) && Character.isLetter(w.codePointAt(0));
+              }
+
+              static String streets(String text) {
+                  List<String> out = new ArrayList<String>();
+                  Matcher a = STREET_A.matcher(text);
+                  while (a.find()) {
+                      String[] ws = a.group(2).split("\\s+");
+                      StringBuilder keep = new StringBuilder();
+                      for (String w : ws) {
+                          if (!isCap(w)) break;
+                          if (keep.length() > 0) keep.append(' ');
+                          keep.append(w);
+                      }
+                      if (keep.length() > 0) {
+                          String v = normKw(a.group(1)) + " " + keep;
+                          if (!out.contains(v)) out.add(v);
+                      }
+                  }
+                  Matcher b = STREET_B.matcher(text);
+                  while (b.find()) {
+                      String rest = text.substring(b.end());
+                      boolean claimed = rest.length() > 1 && Character.isWhitespace(rest.charAt(0)) && Character.isUpperCase(rest.trim().isEmpty() ? 'a' : rest.trim().codePointAt(0));
+                      if (isCap(b.group(1)) && !claimed) {
+                          String v = normKw(b.group(2)) + " " + b.group(1);
+                          if (!out.contains(v)) out.add(v);
+                      }
+                  }
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < out.size() && i < 2; i++) {
+                      if (i > 0) sb.append(" і ");
+                      sb.append(out.get(i));
+                  }
+                  return sb.toString();
+              }
+
               public static Res classify(String text) {
                   if (text == null) return null;
+                  if (!okText(text)) return null;
                   String type = null, comm = null, action = "Виявлено";
                   if (RALL.matcher(text).find()) {
                       type = "Відбій тривоги";
@@ -94,6 +159,7 @@ jobs:
                   }
                   Res res = new Res();
                   res.type = type; res.comm = comm; res.action = action;
+                  res.street = "Відбій тривоги".equals(type) ? "" : streets(text);
                   return res;
               }
 
@@ -112,9 +178,10 @@ jobs:
                       if (!t.find()) continue;
                       String text = clean(t.group(1));
                       if (text.length() == 0) continue;
-                      long ms = System.currentTimeMillis();
                       Matcher tm = TIME.matcher(seg);
-                      if (tm.find()) ms = parseTime(tm.group(1));
+                      if (!tm.find()) continue;
+                      long ms = parseTime(tm.group(1));
+                      if (ms <= 0) continue;
                       Msg g = new Msg();
                       g.id = ids.get(i); g.text = text; g.ms = ms;
                       out.add(g);
@@ -128,7 +195,7 @@ jobs:
                       SimpleDateFormat f = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssZ", Locale.US);
                       return f.parse(t).getTime();
                   } catch (Exception e) {
-                      return System.currentTimeMillis();
+                      return -1L;
                   }
               }
 
@@ -378,19 +445,33 @@ jobs:
 
               private final Map<String, Long> recent = new ConcurrentHashMap<String, Long>();
 
-              private void announce(Cfg c, Parser.Res r) {
-                  String key = r.type + "|" + r.comm;
-                  long nowMs = System.currentTimeMillis();
+              private boolean recentSkip(Parser.Res r) {
+                  long now = System.currentTimeMillis();
                   long win = "Відбій тривоги".equals(r.type) ? 300000L : 600000L;
-                  Long last = recent.get(key);
-                  if (last != null && nowMs - last < win) return;
-                  recent.put(key, nowMs);
-                  boolean allClear = "Відбій тривоги".equals(r.type);
-                  if (c.sound && inSchedule(c)) {
-                      if (allClear) say("Відбій тривоги. " + r.comm + ".");
-                      else say("Увага! " + r.type + ". " + r.comm + ". " + r.action + ".");
+                  String base = r.type + "|" + r.comm + "|";
+                  String street = r.street == null ? "" : r.street;
+                  String k = base + street;
+                  if (street.length() > 0) {
+                      Long l = recent.get(k);
+                      if (l != null && now - l < win) return true;
+                  } else {
+                      for (Map.Entry<String, Long> e : recent.entrySet()) {
+                          if (e.getKey().startsWith(base) && now - e.getValue() < win) return true;
+                      }
                   }
-                  notifyAlert(r.type, allClear ? r.comm : (r.comm + " — " + r.action));
+                  recent.put(k, now);
+                  return false;
+              }
+
+              private void announce(Cfg c, Parser.Res r) {
+                  if (recentSkip(r)) return;
+                  boolean allClear = "Відбій тривоги".equals(r.type);
+                  String where = r.comm + ((!allClear && r.street != null && r.street.length() > 0) ? ", " + r.street : "");
+                  if (c.sound && inSchedule(c)) {
+                      if (allClear) say("Відбій тривоги. " + where + ".");
+                      else say("Увага! " + r.type + ". " + where + ". " + r.action + ".");
+                  }
+                  notifyAlert(r.type, allClear ? where : (where + " — " + r.action));
               }
 
               private boolean inSchedule(Cfg c) {
