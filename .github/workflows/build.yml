@@ -52,31 +52,46 @@ jobs:
               private static final int FL = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
               private static Pattern r(String w) { return Pattern.compile(NB + "(?:" + w + ")", FL); }
 
-              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл"};
+              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл", "Загроза дронів"};
               private static final Pattern[] TYPE_RE = {
                   r("fpv|фпв|камікадзе"),
                   r("шахед|shahed|герань|геран|бпла|безпілотник"),
                   r("ракет|іскандер|калібр"),
                   Pattern.compile(NB + "(?:каб|авіабомб)(?![\\p{L}])", FL),
-                  r("обстріл|артобстріл|приліт|артилері|міномет|смерч")
+                  r("обстріл|артобстріл|приліт|артилері|міномет|смерч"),
+                  r("дрон")
               };
               private static final String[] COMM_NAMES = {"Балабине","Новоолександрівка","Малокатеринівка","Комишуваха","Кушугум","Нижня Хортиця","Оріхів","Гуляйполе","Степногірськ","Мала Токмачка","Преображенка","Вільнянськ","Широке","Біленьке","Долинське","Матвіївка","Новомиколаївка","Воздвижівка","Петро-Михайлівка","Михайлівка","Павлівка","Степне","Тернувате","Запоріжжя"};
               private static final Pattern[] COMM_RE = {
                   r("балабин"), r("новоолександрів"), r("малокатерин"), r("комишува"), r("кушуг"), r("хортиц"), r("оріхів|оріхов"), r("гуляйпол"), r("степногірськ"), r("токмачк"), r("преображенк"), r("вільнянськ"), r("широківськ|широке(?![\\p{L}])"), r("біленьк"), r("долинськ"), r("матвіївк|матвіївськ"), r("новомиколаїв"), r("воздвиж"), r("петро-?михайлів"), r("михайлівк"), r("павлівк|павлівськ"), r("степненськ|степне(?![\\p{L}])"), r("тернуват"), r("запоріж|запорізьк")
               };
-              private static final String[] ACT_NAMES = {"Збито", "Детонація", "Падіння"};
-              private static final Pattern[] ACT_RE = {
-                  r("збит|знищен|збили"), r("детонац|вибух"), r("падін|влуч|приліт")
-              };
+              private static final Pattern RKILL = r("збит|знищен|збили");
+              private static final Pattern RDET = r("детонац|вибух");
+              private static final Pattern RFALL = r("падін|влуч|приліт|впав|впал");
+              private static final Pattern RAKV = r("акватор");
+              private static final Pattern RALL = r("відбій|відбою");
 
               public static Res classify(String text) {
                   if (text == null) return null;
                   String type = null, comm = null, action = "Виявлено";
-                  for (int i = 0; i < TYPE_RE.length; i++) if (TYPE_RE[i].matcher(text).find()) { type = TYPE_NAMES[i]; break; }
-                  if (type == null) return null;
+                  if (RALL.matcher(text).find()) {
+                      type = "Відбій тривоги";
+                      action = "Відбій";
+                  } else {
+                      for (int i = 0; i < TYPE_RE.length; i++) if (TYPE_RE[i].matcher(text).find()) { type = TYPE_NAMES[i]; break; }
+                      if (type == null) return null;
+                  }
                   for (int i = 0; i < COMM_RE.length; i++) if (COMM_RE[i].matcher(text).find()) { comm = COMM_NAMES[i]; break; }
                   if (comm == null) return null;
-                  for (int i = 0; i < ACT_RE.length; i++) if (ACT_RE[i].matcher(text).find()) { action = ACT_NAMES[i]; break; }
+                  if (!"Відбій тривоги".equals(type)) {
+                      boolean f = RFALL.matcher(text).find();
+                      boolean d = RDET.matcher(text).find();
+                      if (RKILL.matcher(text).find()) action = "Збито";
+                      else if (f && RAKV.matcher(text).find()) action = "Впав в акваторії";
+                      else if (f && d) action = "Падіння і детонація";
+                      else if (d) action = "Детонація";
+                      else if (f) action = "Падіння";
+                  }
                   Res res = new Res();
                   res.type = type; res.comm = comm; res.action = action;
                   return res;
@@ -173,6 +188,13 @@ jobs:
           import java.util.List;
           import java.util.Locale;
           import java.util.Set;
+          import java.util.Map;
+          import java.util.concurrent.Callable;
+          import java.util.concurrent.ConcurrentHashMap;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.Future;
+          import java.util.concurrent.TimeUnit;
           import org.json.JSONArray;
           import org.json.JSONObject;
 
@@ -310,14 +332,26 @@ jobs:
                   while (running) {
                       Cfg c = Cfg.load(this);
                       if (c.enabled) {
-                          int okN = 0, total = 0;
-                          String lastErr = "";
-                          for (String ch : c.src) {
-                              if (!running) break;
-                              total++;
-                              try { poll(c, ch); okN++; } catch (Exception e) { lastErr = ch + ": " + e.getMessage(); }
+                          ExecutorService ex = Executors.newFixedThreadPool(5);
+                          List<Future<String>> fs = new ArrayList<Future<String>>();
+                          final Cfg cc = c;
+                          for (final String ch : c.src) {
+                              fs.add(ex.submit(new Callable<String>() {
+                                  @Override public String call() {
+                                      try { poll(cc, ch); return null; } catch (Exception e) { return ch + ": " + e.getMessage(); }
+                                  }
+                              }));
                           }
-                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + total + (lastErr.length() > 0 ? "; помилка " + lastErr : ""));
+                          int okN = 0;
+                          String lastErr = "";
+                          for (Future<String> f : fs) {
+                              try {
+                                  String r = f.get(60, TimeUnit.SECONDS);
+                                  if (r == null) okN++; else lastErr = r;
+                              } catch (Exception e) { }
+                          }
+                          ex.shutdownNow();
+                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + c.src.size() + (lastErr.length() > 0 ? "; остання помилка " + lastErr : ""));
                       } else if (System.currentTimeMillis() - lastSpeak > 20000) {
                           stopSelf();
                           return;
@@ -342,11 +376,21 @@ jobs:
                   }
               }
 
+              private final Map<String, Long> recent = new ConcurrentHashMap<String, Long>();
+
               private void announce(Cfg c, Parser.Res r) {
+                  String key = r.type + "|" + r.comm;
+                  long nowMs = System.currentTimeMillis();
+                  long win = "Відбій тривоги".equals(r.type) ? 300000L : 600000L;
+                  Long last = recent.get(key);
+                  if (last != null && nowMs - last < win) return;
+                  recent.put(key, nowMs);
+                  boolean allClear = "Відбій тривоги".equals(r.type);
                   if (c.sound && inSchedule(c)) {
-                      say("Увага! " + r.type + ". " + r.comm + ". " + r.action + ".");
+                      if (allClear) say("Відбій тривоги. " + r.comm + ".");
+                      else say("Увага! " + r.type + ". " + r.comm + ". " + r.action + ".");
                   }
-                  notifyAlert(r.type, r.comm + " — " + r.action);
+                  notifyAlert(r.type, allClear ? r.comm : (r.comm + " — " + r.action));
               }
 
               private boolean inSchedule(Cfg c) {
@@ -366,7 +410,7 @@ jobs:
 
               private String fetch(String u) throws Exception {
                   HttpURLConnection con = (HttpURLConnection) new URL(u).openConnection();
-                  con.setConnectTimeout(10000);
+                  con.setConnectTimeout(8000);
                   con.setReadTimeout(15000);
                   con.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36");
                   try {
