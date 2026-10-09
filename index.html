@@ -151,7 +151,7 @@ function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{
 var $=function(i){return document.getElementById(i)};
 var srvFeed=[],chFeed={},srvState="off";function allFeed(){var r=srvFeed.slice();Object.keys(chFeed).forEach(function(k){r=r.concat(chFeed[k])});r.sort(function(a,b){return b.ms-a.ms});var seen={};return r.filter(function(x){var k=x.type+"|"+x.comm+"|"+x.action,l=seen[k];if(l&&Math.abs(l-x.ms)<600000)return false;seen[k]=x.ms;return true})}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
-var ICONS={"Вибух":"💥","Загроза дронів":"🛸","Відбій тривоги":"✅","Загроза FPV":"🛸","Загроза шахедів":"✈️","Артобстріл":"💥","Ракета":"🚀","КАБ":"💣"};
+var ICONS={"Загроза Молнія":"🛩","Вибух":"💥","Загроза дронів":"🛸","Відбій тривоги":"✅","Загроза FPV":"🛸","Загроза шахедів":"✈️","Артобстріл":"💥","Ракета":"🚀","КАБ":"💣"};
 var TLABEL={"FPV":"Загроза FPV","Шахед":"Загроза шахедів","Артобстріл":"Артобстріл","Ракета":"Ракета","КАБ":"КАБ"};
 function hm(d){return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)}
 function renderFeed(){
@@ -201,7 +201,7 @@ selT=selA=null;$("place").value="";
 chips("types",TYPES,function(){return selT},function(v){selT=v});chips("acts",ACTS,function(){return selA},function(v){selA=v});chk();
 toast("Повідомлення надіслано");document.querySelector('nav button[data-t="feed"]').click()}
 catch(e){toast("Не вдалось надіслати: "+(e.code||e.message))}};
-var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито","Ракета","КАБ","Відбій тривоги","Впав в акваторії","Падіння і детонація","Загроза дронів","Вибух"].concat(COMM);
+var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито","Ракета","КАБ","Відбій тривоги","Впав в акваторії","Падіння і детонація","Загроза дронів","Вибух","Загроза Молнія"].concat(COMM);
 function dbOpen(cb){try{var r=indexedDB.open("zpvoice",1);r.onupgradeneeded=function(){r.result.createObjectStore("c")};
 r.onsuccess=function(){DB=r.result;cb()};r.onerror=function(){cb()}}catch(e){cb()}}
 function dbPut(k,b){try{if(DB)DB.transaction("c","readwrite").objectStore("c").put(b,k)}catch(e){}}
@@ -274,23 +274,25 @@ if(L){tryp(function(){return L.schedule({notifications:[{id:Math.floor(Date.now(
 if(!ST.notif||!("Notification" in window)||Notification.permission!=="granted")return;
 try{new Notification(title,{body:body,requireInteraction:true,vibrate:[300,150,300,150,600],tag:"threat-"+Date.now()})}catch(e){}}
 var RECENT={};
-function recentSkip(type,comm,street){var rn=Date.now(),win=type==="Відбій тривоги"?300000:600000,base=type+"|"+comm+"|",k=base+(street||"");
-if(street){if(RECENT[k]&&rn-RECENT[k]<win)return true}else{for(var x in RECENT){if(x.indexOf(base)===0&&rn-RECENT[x]<win)return true}}
-RECENT[k]=rn;return false}
-function announce(type,place,action,comm,street){
+function recentSkip(type,comm,street,dir){var rn=Date.now(),win=type==="Відбій тривоги"?300000:600000,base=type+"|"+comm+"|",k=base+(street||""),hd=!!dir,skip=false;
+if(street){var e=RECENT[k];if(e&&rn-e.t<win&&(e.d||!hd))skip=true}
+else{var any=false,anyd=false;for(var x in RECENT){if(x.indexOf(base)===0&&rn-RECENT[x].t<win){any=true;if(RECENT[x].d)anyd=true}}if(any&&(anyd||!hd))skip=true}
+if(!skip)RECENT[k]={t:rn,d:hd};return skip}
+function announce(type,place,action,comm,street,dir){
 if(CP("Alerts")&&ST.bg)return;
-if(recentSkip(type,comm,street))return;
+if(recentSkip(type,comm,street,dir))return;
 var allc=type==="Відбій тривоги";
 var where=(comm||place||"")+(street&&!allc?", "+street:"");
-var text=allc?("Відбій тривоги. "+where+"."):("Увага! "+type+". "+where+". "+action+".");
+var dd=(!allc&&dir)?dir.charAt(0).toUpperCase()+dir.slice(1):"";
+var text=allc?("Відбій тривоги. "+where+"."):("Увага! "+type+". "+where+". "+action+"."+(dd?" "+dd+".":""));
 if(ST.sound&&inSchedule()){if(navigator.vibrate)navigator.vibrate([300,150,300,150,600]);
-var ks=allc?[type,comm]:["Увага",type,comm,action];if(!street&&clips[type]&&(allc||clips[action])){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
-notify(type,allc?where:(where+" — "+action));
+var ks=allc?[type,comm]:["Увага",type,comm,action];if(!street&&!dd&&clips[type]&&(allc||clips[action])){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
+notify(type,allc?where:(where+" — "+action+(dd?". "+dd:"")));
 }
 function srcs(){return String(ST.src||"").split(/[\s,]+/).map(function(x){return x.replace(/^.*t\.me\/(s\/)?/,"").replace(/^@/,"").replace(/[^\w]/g,"")}).filter(Boolean).filter(function(x,i,a){var l=x.toLowerCase();return a.map(function(y){return y.toLowerCase()}).indexOf(l)===i}).slice(0,40)}
 var NB="(?<![а-яіїєґa-z])",NE="(?![а-яіїєґa-z])";
 function R(w){return new RegExp(NB+"(?:"+w+")",'i')}
-var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза шахедів",R("шахед|shahed|герань|геран|бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")],["Вибух",R("вибух|детонац|прильот")],["Загроза дронів",R("дрон")]];
+var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза Молнія",R("молні|молни")],["Загроза шахедів",R("шахед|shahed|герань|геран|бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")],["Вибух",R("вибух|детонац|прильот")],["Загроза дронів",R("дрон")]];
 var RC=[["Балабине",R("балабин")],["Новоолександрівка",R("новоолександрів")],["Малокатеринівка",R("малокатерин")],["Комишуваха",R("комишува")],["Кушугум",R("кушуг")],["Нижня Хортиця",R("хортиц")],["Оріхів",R("оріхів|оріхов")],["Гуляйполе",R("гуляйпол")],["Степногірськ",R("степногірськ")],["Мала Токмачка",R("токмачк")],["Преображенка",R("преображенк")],["Вільнянськ",R("вільнянськ")],["Широке",R("широківськ|широке(?![а-яіїєґa-z])")],["Біленьке",R("біленьк")],["Долинське",R("долинськ")],["Матвіївка",R("матвіївк|матвіївськ")],["Новомиколаївка",R("новомиколаїв")],["Воздвижівка",R("воздвиж")],["Петро-Михайлівка",R("петро-?михайлів")],["Михайлівка",R("михайлівк")],["Павлівка",R("павлівк|павлівськ")],["Степне",R("степненськ|степне(?![а-яіїєґa-z])")],["Тернувате",R("тернуват")],["Запоріжжя",R("запоріж|запорізьк")]];
 var RKILL=R("збит|знищен|збили"),RDET=R("детонац|вибух"),RFALL=R("падін|влуч|приліт|впав|впал"),RAKV=R("акватор"),RALL=R("відбій|відбою");
 var RNEG=R("стають|посилюємо|допомагаємо|експерт|аналітик|підсумк|статистик|за ніч|за добу|за минул|протягом доби|станом на|донат|підтримай"),REVT=R("виявлен|летить|летять|літає|літають|напрямк|курсом|група|груп|прилітал|приліт|вибух|детонац|влуч|падін|впав|впал|збит|знищен|обстріл|атак|заходить|заходять|рухається|рухаються|прямує|прямують|над ");
@@ -303,6 +305,11 @@ function add(kw,name){if(out.indexOf(kw+" "+name)<0)out.push(kw+" "+name)}
 while((m=a.exec(text))){var ws=m[2].split(/\s+/),keep=[];for(var i=0;i<ws.length&&isCap(ws[i]);i++)keep.push(ws[i]);if(keep.length)add(normKw(m[1]),keep.join(" "))}
 while((m=b.exec(text))){if(isCap(m[1])&&!/^\s+[А-ЯІЇЄҐ]/.test(text.slice(b.lastIndex)))add(normKw(m[2]),m[1])}
 return out.slice(0,2)}
+var DIRS=/(?<![а-яіїєґ])(курсом|курс|у напрямку|в напрямку|напрямку|напрямком|рухається|рухаються|летить|летять|прямує|прямують|заходить|заходять|наближається|наближаються|з боку|із боку|з напрямку|з півдня|з півночі|зі сходу|із сходу|з сходу|з заходу|з південного сходу|з південного заходу|з північного сходу|з північного заходу)(?![а-яіїєґ])/i;
+function direction(text){var t=text.replace(/https?:\/\/\S+/g,"").replace(/@\w+/g,"").replace(/(^|[^\p{L}])(вул|просп|пров|бул|пл|мкр|смт|р-н|гр)\./giu,"$1$2"),m=DIRS.exec(t);if(!m)return "";
+var rest=t.slice(m.index),cut=rest.length;[".","!","?",";","("].forEach(function(c){var i=rest.indexOf(c);if(i>=0&&i<cut)cut=i});
+rest=rest.slice(0,cut).replace(/[^\p{L}\p{N}\s,'’ʼ-]/gu,"").replace(/\s+/g," ").trim();
+var w=rest.split(" ");if(w.length<2)return "";var AB={"вул":"вулиця","просп":"проспект","пров":"провулок","бул":"бульвар","пл":"площа","мкр":"мікрорайон","смт":"селище","р-н":"район"};return w.slice(0,8).map(function(x){return AB[x.toLowerCase()]||x}).join(" ").replace(/,$/,"")}
 function classify(text){var type=null,comm=null,action="Виявлено",i;if(!okText(text))return null;
 if(RALL.test(text)){type="Відбій тривоги";action="Відбій"}
 else{for(i=0;i<RT.length;i++)if(RT[i][1].test(text)){type=RT[i][0];break}
@@ -311,7 +318,7 @@ for(i=0;i<RC.length;i++)if(RC[i][1].test(text)){comm=RC[i][0];break}
 if(!comm)return null;
 if(type!=="Відбій тривоги"){var f=RFALL.test(text),d=RDET.test(text);
 action=RKILL.test(text)?"Збито":(f&&RAKV.test(text)?"Впав в акваторії":(f&&d?"Падіння і детонація":(d?"Детонація":(f?"Падіння":"Виявлено"))))}
-return {type:type,comm:comm,action:action,street:type==="Відбій тривоги"?"":streets(text).join(" і ")}}
+return {type:type,comm:comm,action:action,street:type==="Відбій тривоги"?"":streets(text).join(" і "),dir:type==="Відбій тривоги"?"":direction(text)}}
 function parseTg(html){var doc=new DOMParser().parseFromString(html,"text/html"),out=[];
 doc.querySelectorAll(".tgme_widget_message").forEach(function(m){var id=m.getAttribute("data-post"),t=m.querySelector(".tgme_widget_message_text"),tm=m.querySelector("time");
 if(!id||!t)return;var ms=tm&&tm.getAttribute("datetime")?Date.parse(tm.getAttribute("datetime")):NaN;if(isNaN(ms))return;
@@ -332,7 +339,7 @@ var msgs=parseTg(await r.text()),now=Date.now(),items=[],n=0;
 if(!msgs.length)throw new Error("канал не знайдено або закритий");
 msgs.forEach(function(m){if(now-m.ms<20*60000&&RW.test(m.text)&&findComm(m.text))okMs[ch]=Math.max(okMs[ch]||0,m.ms);var c=classify(m.text);if(!c)return;n++;
 if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch});
-if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm,c.street)}});
+if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm,c.street,c.dir)}});
 saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;
 }catch(e){srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
 showSrc();updateBanner();renderFeed()}
