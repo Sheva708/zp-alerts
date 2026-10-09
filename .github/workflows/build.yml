@@ -42,7 +42,7 @@ jobs:
 
           public class Parser {
               public static class Msg { public String id; public String text; public long ms; }
-              public static class Res { public String type; public String comm; public String action; public String street = ""; }
+              public static class Res { public String type; public String comm; public String action; public String street = ""; public String dir = ""; }
 
               private static final Pattern POST = Pattern.compile("<div class=\"tgme_widget_message(?: [^\"]*)?\"[^>]*?data-post=\"([^\"]+)\"");
               private static final Pattern TEXT = Pattern.compile("<div class=\"tgme_widget_message_text js-message_text\"[^>]*>(.*?)</div>", Pattern.DOTALL);
@@ -52,9 +52,10 @@ jobs:
               private static final int FL = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
               private static Pattern r(String w) { return Pattern.compile(NB + "(?:" + w + ")", FL); }
 
-              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл", "Вибух", "Загроза дронів"};
+              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза Молнія", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл", "Вибух", "Загроза дронів"};
               private static final Pattern[] TYPE_RE = {
                   r("fpv|фпв|камікадзе"),
+                  r("молні|молни"),
                   r("шахед|shahed|герань|геран|бпла|безпілотник"),
                   r("ракет|іскандер|калібр"),
                   Pattern.compile(NB + "(?:каб|авіабомб)(?![\\p{L}])", FL),
@@ -78,6 +79,45 @@ jobs:
               private static final String CAPW = "[\\p{L}'’ʼ-]+";
               private static final Pattern STREET_A = Pattern.compile("(?<![\\p{L}])(?iu:" + SKW + ")\\s+(" + CAPW + "(?:\\s+" + CAPW + ")?)");
               private static final Pattern STREET_B = Pattern.compile("(" + CAPW + ")\\s+(?iu:" + SKW + ")(?![\\p{L}])");
+
+              private static final Pattern DIRS = Pattern.compile("(?<![\\p{L}])(?iu:курсом|курс|у напрямку|в напрямку|напрямку|напрямком|рухається|рухаються|летить|летять|прямує|прямують|заходить|заходять|наближається|наближаються|з боку|із боку|з напрямку|з півдня|з півночі|зі сходу|із сходу|з сходу|з заходу|з південного сходу|з південного заходу|з північного сходу|з північного заходу)(?![\\p{L}])");
+
+              static String expandAb(String x) {
+                  String l = x.toLowerCase(Locale.ROOT);
+                  if (l.equals("вул")) return "вулиця";
+                  if (l.equals("просп")) return "проспект";
+                  if (l.equals("пров")) return "провулок";
+                  if (l.equals("бул")) return "бульвар";
+                  if (l.equals("пл")) return "площа";
+                  if (l.equals("мкр")) return "мікрорайон";
+                  if (l.equals("смт")) return "селище";
+                  if (l.equals("р-н")) return "район";
+                  return x;
+              }
+
+              static String direction(String text) {
+                  String t = text.replaceAll("https?://\\S+", "").replaceAll("@\\w+", "").replaceAll("(?iu)(^|[^\\p{L}])(вул|просп|пров|бул|пл|мкр|смт|р-н|гр)\\.", "$1$2");
+                  Matcher m = DIRS.matcher(t);
+                  if (!m.find()) return "";
+                  String rest = t.substring(m.start());
+                  int cut = rest.length();
+                  String[] stops = {".", "!", "?", ";", "("};
+                  for (String c : stops) {
+                      int i = rest.indexOf(c);
+                      if (i >= 0 && i < cut) cut = i;
+                  }
+                  rest = rest.substring(0, cut).replaceAll("[^\\p{L}\\p{N}\\s,'’ʼ-]", "").replaceAll("\\s+", " ").trim();
+                  String[] w = rest.split(" ");
+                  if (w.length < 2) return "";
+                  StringBuilder sb = new StringBuilder();
+                  for (int i = 0; i < w.length && i < 8; i++) {
+                      if (i > 0) sb.append(' ');
+                      sb.append(expandAb(w[i]));
+                  }
+                  String out = sb.toString();
+                  if (out.endsWith(",")) out = out.substring(0, out.length() - 1);
+                  return out;
+              }
 
               static boolean okText(String t) {
                   if (t.length() > 400 || RNEG.matcher(t).find()) return false;
@@ -160,6 +200,7 @@ jobs:
                   Res res = new Res();
                   res.type = type; res.comm = comm; res.action = action;
                   res.street = "Відбій тривоги".equals(type) ? "" : streets(text);
+                  res.dir = "Відбій тривоги".equals(type) ? "" : direction(text);
                   return res;
               }
 
@@ -443,35 +484,46 @@ jobs:
                   }
               }
 
-              private final Map<String, Long> recent = new ConcurrentHashMap<String, Long>();
+              private final Map<String, long[]> recent = new ConcurrentHashMap<String, long[]>();
 
               private boolean recentSkip(Parser.Res r) {
                   long now = System.currentTimeMillis();
                   long win = "Відбій тривоги".equals(r.type) ? 300000L : 600000L;
                   String base = r.type + "|" + r.comm + "|";
                   String street = r.street == null ? "" : r.street;
+                  boolean hd = r.dir != null && r.dir.length() > 0;
                   String k = base + street;
+                  boolean skip = false;
                   if (street.length() > 0) {
-                      Long l = recent.get(k);
-                      if (l != null && now - l < win) return true;
+                      long[] e = recent.get(k);
+                      if (e != null && now - e[0] < win && (e[1] == 1 || !hd)) skip = true;
                   } else {
-                      for (Map.Entry<String, Long> e : recent.entrySet()) {
-                          if (e.getKey().startsWith(base) && now - e.getValue() < win) return true;
+                      boolean any = false, anyd = false;
+                      for (Map.Entry<String, long[]> e : recent.entrySet()) {
+                          if (e.getKey().startsWith(base) && now - e.getValue()[0] < win) {
+                              any = true;
+                              if (e.getValue()[1] == 1) anyd = true;
+                          }
                       }
+                      if (any && (anyd || !hd)) skip = true;
                   }
-                  recent.put(k, now);
-                  return false;
+                  if (!skip) recent.put(k, new long[]{now, hd ? 1 : 0});
+                  return skip;
               }
 
               private void announce(Cfg c, Parser.Res r) {
                   if (recentSkip(r)) return;
                   boolean allClear = "Відбій тривоги".equals(r.type);
                   String where = r.comm + ((!allClear && r.street != null && r.street.length() > 0) ? ", " + r.street : "");
+                  String dd = "";
+                  if (!allClear && r.dir != null && r.dir.length() > 0) {
+                      dd = r.dir.substring(0, 1).toUpperCase() + r.dir.substring(1);
+                  }
                   if (c.sound && inSchedule(c)) {
                       if (allClear) say("Відбій тривоги. " + where + ".");
-                      else say("Увага! " + r.type + ". " + where + ". " + r.action + ".");
+                      else say("Увага! " + r.type + ". " + where + ". " + r.action + "." + (dd.length() > 0 ? " " + dd + "." : ""));
                   }
-                  notifyAlert(r.type, allClear ? where : (where + " — " + r.action));
+                  notifyAlert(r.type, allClear ? where : (where + " — " + r.action + (dd.length() > 0 ? ". " + dd : "")));
               }
 
               private boolean inSchedule(Cfg c) {
