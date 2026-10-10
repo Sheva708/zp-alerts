@@ -52,11 +52,12 @@ jobs:
               private static final int FL = Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
               private static Pattern r(String w) { return Pattern.compile(NB + "(?:" + w + ")", FL); }
 
-              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза Молнія", "Загроза шахедів", "Ракета", "КАБ", "Артобстріл", "Вибух", "Загроза дронів"};
+              private static final String[] TYPE_NAMES = {"Загроза FPV", "Загроза Молнія", "Загроза шахедів", "Загроза БпЛА", "Ракета", "КАБ", "Артобстріл", "Вибух", "Загроза дронів"};
               private static final Pattern[] TYPE_RE = {
                   r("fpv|фпв|камікадзе"),
                   r("молні|молни"),
-                  r("шахед|shahed|герань|геран|бпла|безпілотник"),
+                  r("шахед|shahed|герань|геран"),
+                  r("бпла|безпілотник"),
                   r("ракет|іскандер|калібр"),
                   Pattern.compile(NB + "(?:каб|авіабомб)(?![\\p{L}])", FL),
                   r("обстріл|артобстріл|приліт|артилері|міномет|смерч"),
@@ -80,7 +81,19 @@ jobs:
               private static final Pattern STREET_A = Pattern.compile("(?<![\\p{L}])(?iu:" + SKW + ")\\s+(" + CAPW + "(?:\\s+" + CAPW + ")?)");
               private static final Pattern STREET_B = Pattern.compile("(" + CAPW + ")\\s+(?iu:" + SKW + ")(?![\\p{L}])");
 
-              private static final Pattern DIRS = Pattern.compile("(?<![\\p{L}])(?iu:курсом|курс|у напрямку|в напрямку|напрямку|напрямком|рухається|рухаються|летить|летять|прямує|прямують|заходить|заходять|наближається|наближаються|з боку|із боку|з напрямку|з півдня|з півночі|зі сходу|із сходу|з сходу|з заходу|з південного сходу|з південного заходу|з північного сходу|з північного заходу)(?![\\p{L}])");
+              private static final Pattern DIRS = Pattern.compile("(?<![\\p{L}])(?iu:курсом|курс|у напрямку|в напрямку|напрямку|напрямком|рухається|рухаються|рухався|рухалась|рухалася|рухалися|летів|летіла|летіло|летіли|йшов|йшла|йшли|прямував|прямувала|прямували|заходив|заходила|заходили|вилетів|вилетіла|прилетів|прилетіла|прилетіли|наближався|наближалася|наближалися|летить|летять|прямує|прямують|заходить|заходять|наближається|наближаються|з боку|із боку|з напрямку|з півдня|з півночі|зі сходу|із сходу|з сходу|з заходу|з південного сходу|з південного заходу|з північного сходу|з північного заходу)(?![\\p{L}])");
+
+              static String dedupeStreets(String joined, String dir) {
+                  if (joined.length() == 0) return "";
+                  String dl = dir.toLowerCase(Locale.ROOT);
+                  StringBuilder sb = new StringBuilder();
+                  for (String part : joined.split(" і ")) {
+                      if (dl.contains(part.toLowerCase(Locale.ROOT))) continue;
+                      if (sb.length() > 0) sb.append(" і ");
+                      sb.append(part);
+                  }
+                  return sb.toString();
+              }
 
               static String expandAb(String x) {
                   String l = x.toLowerCase(Locale.ROOT);
@@ -138,6 +151,20 @@ jobs:
                   return k;
               }
 
+              static boolean isComm(String w) {
+                  for (int i = 0; i < COMM_RE.length; i++) if (COMM_RE[i].matcher(w).find()) return true;
+                  return false;
+              }
+
+              public static String speechFix(String s) {
+                  return s.replaceAll("(?iu)(?<![\\p{L}])FPV(?![\\p{L}])", "Еф-Пі-Ві")
+                      .replaceAll("(?iu)фпв", "Еф-Пе-Ве")
+                      .replaceAll("(?iu)БпЛА", "Бе-Пе-Ел-А")
+                      .replaceAll("(?iu)(?<![\\p{L}])каб(?![\\p{L}])", "Ка-А-Бе")
+                      .replace("ППО", "Пе-Пе-О")
+                      .replace("ЗСУ", "Зе-Се-У");
+              }
+
               static boolean isCap(String w) {
                   return w.length() > 0 && Character.isUpperCase(w.codePointAt(0)) && Character.isLetter(w.codePointAt(0));
               }
@@ -167,8 +194,21 @@ jobs:
                           if (!out.contains(v)) out.add(v);
                       }
                   }
+                  if (Pattern.compile("(?<![\\p{L}])(?iu:центр)\\p{L}*(?![\\p{L}])").matcher(text).find() && !out.contains("центр міста")) out.add("центр міста");
+                  Matcher dm = Pattern.compile("(\\p{Lu}[\\p{L}'’ʼ-]*(?:ський|цький|зький))\\s+район").matcher(text);
+                  while (dm.find()) {
+                      String dv = dm.group(1) + " район";
+                      if (!out.contains(dv)) out.add(dv);
+                  }
+                  Matcher pm = Pattern.compile("(?<![\\p{L}])(на|біля|поблизу|повз|навколо|в районі|у районі)\\s+(\\p{Lu}\\p{Ll}[\\p{L}'’ʼ-]*)").matcher(text);
+                  while (pm.find()) {
+                      String nm = pm.group(2);
+                      if (nm.equals("Україні") || nm.equals("Україну") || nm.equals("України") || nm.equals("Підтримати") || nm.equals("Telegram") || isComm(nm)) continue;
+                      String pv = pm.group(1) + " " + nm;
+                      if (!out.contains(pv)) out.add(pv);
+                  }
                   StringBuilder sb = new StringBuilder();
-                  for (int i = 0; i < out.size() && i < 2; i++) {
+                  for (int i = 0; i < out.size() && i < 3; i++) {
                       if (i > 0) sb.append(" і ");
                       sb.append(out.get(i));
                   }
@@ -199,8 +239,8 @@ jobs:
                   }
                   Res res = new Res();
                   res.type = type; res.comm = comm; res.action = action;
-                  res.street = "Відбій тривоги".equals(type) ? "" : streets(text);
                   res.dir = "Відбій тривоги".equals(type) ? "" : direction(text);
+                  res.street = "Відбій тривоги".equals(type) ? "" : dedupeStreets(streets(text), res.dir);
                   return res;
               }
 
@@ -512,7 +552,10 @@ jobs:
               }
 
               private void announce(Cfg c, Parser.Res r) {
-                  if (recentSkip(r)) return;
+                  if (recentSkip(r)) {
+                      logEv("пропущено як повтор: " + r.type + ", " + r.comm);
+                      return;
+                  }
                   boolean allClear = "Відбій тривоги".equals(r.type);
                   String where = r.comm + ((!allClear && r.street != null && r.street.length() > 0) ? ", " + r.street : "");
                   String dd = "";
@@ -520,8 +563,13 @@ jobs:
                       dd = r.dir.substring(0, 1).toUpperCase() + r.dir.substring(1);
                   }
                   if (c.sound && inSchedule(c)) {
-                      if (allClear) say("Відбій тривоги. " + where + ".");
-                      else say("Увага! " + r.type + ". " + where + ". " + r.action + "." + (dd.length() > 0 ? " " + dd + "." : ""));
+                      String sp;
+                      if (allClear) sp = "Відбій тривоги. " + where + ".";
+                      else sp = "Увага! " + r.type + ". " + where + ". " + r.action + "." + (dd.length() > 0 ? " " + dd + "." : "");
+                      say(sp);
+                      logEv("озвучено: " + sp);
+                  } else {
+                      logEv("без голосу (звук вимкнено або поза розкладом): " + r.type + ", " + r.comm);
                   }
                   notifyAlert(r.type, allClear ? where : (where + " — " + r.action + (dd.length() > 0 ? ". " + dd : "")));
               }
@@ -569,11 +617,23 @@ jobs:
 
               private void speakNow(String text) {
                   try {
+                      text = Parser.speechFix(text);
                       Cfg c = Cfg.load(this);
                       tts.setPitch(c.pitch);
                       tts.setSpeechRate(c.rate);
                       int res = tts.speak(text, TextToSpeech.QUEUE_ADD, null, "zp" + System.nanoTime());
                       if (res != TextToSpeech.SUCCESS) setSt("tts", "speak повернув помилку " + res);
+                  } catch (Exception e) { }
+              }
+
+              private synchronized void logEv(String ev) {
+                  try {
+                      String stamp = new SimpleDateFormat("HH:mm:ss").format(new Date());
+                      String old = getSharedPreferences(PREFS, 0).getString("log", "");
+                      String[] lines = old.length() == 0 ? new String[0] : old.split("\n");
+                      StringBuilder sb = new StringBuilder(stamp + " " + ev);
+                      for (int i = 0; i < lines.length && i < 7; i++) sb.append('\n').append(lines[i]);
+                      getSharedPreferences(PREFS, 0).edit().putString("log", sb.toString()).apply();
                   } catch (Exception e) { }
               }
 
@@ -744,6 +804,7 @@ jobs:
                       SharedPreferences p = getContext().getSharedPreferences("zp", 0);
                       r.put("tts", p.getString("tts", "ще не запускався"));
                       r.put("svc", p.getString("svc", "ще не перевіряла"));
+                      r.put("log", p.getString("log", "ще нічого не озвучувала"));
                   } catch (Exception e) { }
                   call.resolve(r);
               }
