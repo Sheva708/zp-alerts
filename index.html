@@ -114,6 +114,8 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="line"><span>Тембр (нижче = грубіше) <b id="pv"></b></span><input type="range" id="pitchR" min="0.1" max="1" step="0.05" style="width:48%"></div>
 <div class="line"><span>Швидкість <b id="rv"></b></span><input type="range" id="rateR" min="0.6" max="1.2" step="0.05" style="width:48%"></div>
 <button class="send ready" id="testBtn">🔔 Перевірити голос</button>
+<button class="send" id="diagBtn" style="margin-top:10px">🔍 Діагностика (що озвучено)</button>
+<div class="demo" id="diagBox" style="text-align:left;white-space:pre-line;margin:6px 0"></div>
 <button class="send" id="ttsBtn" style="margin-top:10px">⚙️ Налаштування голосу Android</button>
 <div class="demo" id="voiceNote" style="text-align:left;margin-top:10px">Гучність голосу така ж, як у медіа (кнопки гучності телефона). Щоб оповіщення лунали з вимкненим екраном, залишайте «Працювати у фоні» увімкненим.</div>
 <div class="sec">Джерела даних</div>
@@ -151,7 +153,7 @@ function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{
 var $=function(i){return document.getElementById(i)};
 var srvFeed=[],chFeed={},srvState="off";function allFeed(){var r=srvFeed.slice();Object.keys(chFeed).forEach(function(k){r=r.concat(chFeed[k])});r.sort(function(a,b){return b.ms-a.ms});var seen={};return r.filter(function(x){var k=x.type+"|"+x.comm+"|"+x.action,l=seen[k];if(l&&Math.abs(l-x.ms)<600000)return false;seen[k]=x.ms;return true})}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
-var ICONS={"Загроза Молнія":"🛩","Вибух":"💥","Загроза дронів":"🛸","Відбій тривоги":"✅","Загроза FPV":"🛸","Загроза шахедів":"✈️","Артобстріл":"💥","Ракета":"🚀","КАБ":"💣"};
+var ICONS={"Загроза БпЛА":"🛸","Загроза Молнія":"🛩","Вибух":"💥","Загроза дронів":"🛸","Відбій тривоги":"✅","Загроза FPV":"🛸","Загроза шахедів":"✈️","Артобстріл":"💥","Ракета":"🚀","КАБ":"💣"};
 var TLABEL={"FPV":"Загроза FPV","Шахед":"Загроза шахедів","Артобстріл":"Артобстріл","Ракета":"Ракета","КАБ":"КАБ"};
 function hm(d){return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)}
 function renderFeed(){
@@ -174,7 +176,7 @@ document.querySelectorAll("nav button").forEach(function(b){b.onclick=function()
 document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
 ["feed","report","acc"].forEach(function(t){$("tab-"+t).classList.toggle("hide",t!==b.dataset.t)});window.scrollTo(0,0)}});
 $("hromady").onclick=function(){$("hmodal").classList.add("open")};
-$("setBtn").onclick=function(){$("smodal").classList.add("open");try{showSl()}catch(e){}};
+$("setBtn").onclick=function(){$("smodal").classList.add("open");try{showDiag()}catch(e){}try{showSl()}catch(e){}};
 document.querySelectorAll("[data-close]").forEach(function(b){b.onclick=function(){b.closest(".modal").classList.remove("open")}});
 $("hlist").onclick=function(e){var c=e.target.dataset.c;if(!c)return;var i=ST.comm.indexOf(c);if(i>-1)ST.comm.splice(i,1);else ST.comm.push(c);save();renderHromady();renderFeed()};
 $("soundSw").onclick=function(){ST.sound=!ST.sound;save();applySw()};
@@ -201,7 +203,7 @@ selT=selA=null;$("place").value="";
 chips("types",TYPES,function(){return selT},function(v){selT=v});chips("acts",ACTS,function(){return selA},function(v){selA=v});chk();
 toast("Повідомлення надіслано");document.querySelector('nav button[data-t="feed"]').click()}
 catch(e){toast("Не вдалось надіслати: "+(e.code||e.message))}};
-var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито","Ракета","КАБ","Відбій тривоги","Впав в акваторії","Падіння і детонація","Загроза дронів","Вибух","Загроза Молнія"].concat(COMM);
+var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито","Ракета","КАБ","Відбій тривоги","Впав в акваторії","Падіння і детонація","Загроза дронів","Вибух","Загроза Молнія","Загроза БпЛА"].concat(COMM);
 function dbOpen(cb){try{var r=indexedDB.open("zpvoice",1);r.onupgradeneeded=function(){r.result.createObjectStore("c")};
 r.onsuccess=function(){DB=r.result;cb()};r.onerror=function(){cb()}}catch(e){cb()}}
 function dbPut(k,b){try{if(DB)DB.transaction("c","readwrite").objectStore("c").put(b,k)}catch(e){}}
@@ -249,7 +251,9 @@ o.type="square";o.frequency.value=d?660:880;g.gain.value=.15;o.connect(g);g.conn
 var vstat="";
 function setStat(t){vstat=t;var e=$("vstat");if(e)e.textContent=t}
 function toast(t){var d=document.createElement("div");d.textContent=t;d.style.cssText="position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top,0px));z-index:99;background:var(--acc);color:#111;padding:14px 16px;border-radius:16px;font-size:16px;font-weight:600;text-align:center";document.body.appendChild(d);setTimeout(function(){d.remove()},4500)}
+function speechFix(t){return t.replace(/(?<![\p{L}])FPV(?![\p{L}])/giu,"Еф-Пі-Ві").replace(/фпв/giu,"Еф-Пе-Ве").replace(/БпЛА/giu,"Бе-Пе-Ел-А").replace(/(?<![\p{L}])каб(?![\p{L}])/giu,"Ка-А-Бе").replace(/ППО/g,"Пе-Пе-О").replace(/ЗСУ/g,"Зе-Се-У")}
 function speak(text,tryN){tryN=tryN||0;
+text=speechFix(text);
 var A0=CP("Alerts");
 if(A0&&tryN===0){setStat("🔊 Озвучується (системний голос Android)");tryp(function(){return A0.speak({text:text})});setTimeout(function(){tryp(function(){return A0.status().then(function(r){setStat("Голос: "+r.tts+" | Служба: "+r.svc)})})},2500);return}
 var T=nTTS();
@@ -292,7 +296,7 @@ notify(type,allc?where:(where+" — "+action+(dd?". "+dd:"")));
 function srcs(){return String(ST.src||"").split(/[\s,]+/).map(function(x){return x.replace(/^.*t\.me\/(s\/)?/,"").replace(/^@/,"").replace(/[^\w]/g,"")}).filter(Boolean).filter(function(x,i,a){var l=x.toLowerCase();return a.map(function(y){return y.toLowerCase()}).indexOf(l)===i}).slice(0,40)}
 var NB="(?<![а-яіїєґa-z])",NE="(?![а-яіїєґa-z])";
 function R(w){return new RegExp(NB+"(?:"+w+")",'i')}
-var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза Молнія",R("молні|молни")],["Загроза шахедів",R("шахед|shahed|герань|геран|бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")],["Вибух",R("вибух|детонац|прильот")],["Загроза дронів",R("дрон")]];
+var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза Молнія",R("молні|молни")],["Загроза шахедів",R("шахед|shahed|герань|геран")],["Загроза БпЛА",R("бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")],["Вибух",R("вибух|детонац|прильот")],["Загроза дронів",R("дрон")]];
 var RC=[["Балабине",R("балабин")],["Новоолександрівка",R("новоолександрів")],["Малокатеринівка",R("малокатерин")],["Комишуваха",R("комишува")],["Кушугум",R("кушуг")],["Нижня Хортиця",R("хортиц")],["Оріхів",R("оріхів|оріхов")],["Гуляйполе",R("гуляйпол")],["Степногірськ",R("степногірськ")],["Мала Токмачка",R("токмачк")],["Преображенка",R("преображенк")],["Вільнянськ",R("вільнянськ")],["Широке",R("широківськ|широке(?![а-яіїєґa-z])")],["Біленьке",R("біленьк")],["Долинське",R("долинськ")],["Матвіївка",R("матвіївк|матвіївськ")],["Новомиколаївка",R("новомиколаїв")],["Воздвижівка",R("воздвиж")],["Петро-Михайлівка",R("петро-?михайлів")],["Михайлівка",R("михайлівк")],["Павлівка",R("павлівк|павлівськ")],["Степне",R("степненськ|степне(?![а-яіїєґa-z])")],["Тернувате",R("тернуват")],["Запоріжжя",R("запоріж|запорізьк")]];
 var RKILL=R("збит|знищен|збили"),RDET=R("детонац|вибух"),RFALL=R("падін|влуч|приліт|впав|впал"),RAKV=R("акватор"),RALL=R("відбій|відбою");
 var RNEG=R("стають|посилюємо|допомагаємо|експерт|аналітик|підсумк|статистик|за ніч|за добу|за минул|протягом доби|станом на|донат|підтримай"),REVT=R("виявлен|летить|летять|літає|літають|напрямк|курсом|група|груп|прилітал|приліт|вибух|детонац|влуч|падін|впав|впал|збит|знищен|обстріл|атак|заходить|заходять|рухається|рухаються|прямує|прямують|над ");
@@ -304,8 +308,12 @@ function streets(text){var out=[],m,a=new RegExp(LB+SK+"\\s+("+CAPW+"(?:\\s+"+CA
 function add(kw,name){if(out.indexOf(kw+" "+name)<0)out.push(kw+" "+name)}
 while((m=a.exec(text))){var ws=m[2].split(/\s+/),keep=[];for(var i=0;i<ws.length&&isCap(ws[i]);i++)keep.push(ws[i]);if(keep.length)add(normKw(m[1]),keep.join(" "))}
 while((m=b.exec(text))){if(isCap(m[1])&&!/^\s+[А-ЯІЇЄҐ]/.test(text.slice(b.lastIndex)))add(normKw(m[2]),m[1])}
-return out.slice(0,2)}
-var DIRS=/(?<![а-яіїєґ])(курсом|курс|у напрямку|в напрямку|напрямку|напрямком|рухається|рухаються|летить|летять|прямує|прямують|заходить|заходять|наближається|наближаються|з боку|із боку|з напрямку|з півдня|з півночі|зі сходу|із сходу|з сходу|з заходу|з південного сходу|з південного заходу|з північного сходу|з північного заходу)(?![а-яіїєґ])/i;
+if(/(?<![а-яіїєґ])центр[а-яіїєґ]*(?![а-яіїєґ])/i.test(text)&&out.indexOf("центр міста")<0)out.push("центр міста");
+var dm,dre=/([А-ЯІЇЄҐ][а-яіїєґ'’ʼ-]+(?:ський|цький|зький))\s+район/g;while((dm=dre.exec(text))){var dv=dm[1]+" район";if(out.indexOf(dv)<0)out.push(dv)}
+var pm,pre=/(?<![а-яіїєґА-ЯІЇЄҐ])(на|біля|поблизу|повз|навколо|в районі|у районі)\s+(\p{Lu}\p{Ll}[\p{L}'’ʼ-]*)/gu,STOP=["Україні","Україну","України","Підтримати","Telegram"];
+while((pm=pre.exec(text))){if(STOP.indexOf(pm[2])>=0||findComm(pm[2]))continue;var pv=pm[1]+" "+pm[2];if(out.indexOf(pv)<0)out.push(pv)}
+return out.slice(0,3)}
+var DIRS=/(?<![а-яіїєґ])(курсом|курс|у напрямку|в напрямку|напрямку|напрямком|рухається|рухаються|рухався|рухалась|рухалася|рухалися|летів|летіла|летіло|летіли|йшов|йшла|йшли|прямував|прямувала|прямували|заходив|заходила|заходили|вилетів|вилетіла|прилетів|прилетіла|прилетіли|наближався|наближалася|наближалися|летить|летять|прямує|прямують|заходить|заходять|наближається|наближаються|з боку|із боку|з напрямку|з півдня|з півночі|зі сходу|із сходу|з сходу|з заходу|з південного сходу|з південного заходу|з північного сходу|з північного заходу)(?![а-яіїєґ])/i;
 function direction(text){var t=text.replace(/https?:\/\/\S+/g,"").replace(/@\w+/g,"").replace(/(^|[^\p{L}])(вул|просп|пров|бул|пл|мкр|смт|р-н|гр)\./giu,"$1$2"),m=DIRS.exec(t);if(!m)return "";
 var rest=t.slice(m.index),cut=rest.length;[".","!","?",";","("].forEach(function(c){var i=rest.indexOf(c);if(i>=0&&i<cut)cut=i});
 rest=rest.slice(0,cut).replace(/[^\p{L}\p{N}\s,'’ʼ-]/gu,"").replace(/\s+/g," ").trim();
@@ -318,7 +326,8 @@ for(i=0;i<RC.length;i++)if(RC[i][1].test(text)){comm=RC[i][0];break}
 if(!comm)return null;
 if(type!=="Відбій тривоги"){var f=RFALL.test(text),d=RDET.test(text);
 action=RKILL.test(text)?"Збито":(f&&RAKV.test(text)?"Впав в акваторії":(f&&d?"Падіння і детонація":(d?"Детонація":(f?"Падіння":"Виявлено"))))}
-return {type:type,comm:comm,action:action,street:type==="Відбій тривоги"?"":streets(text).join(" і "),dir:type==="Відбій тривоги"?"":direction(text)}}
+var allc2=type==="Відбій тривоги",dr=allc2?"":direction(text);
+return {type:type,comm:comm,action:action,street:allc2?"":streets(text).filter(function(x){return dr.toLowerCase().indexOf(x.toLowerCase())<0}).join(" і "),dir:dr}}
 function parseTg(html){var doc=new DOMParser().parseFromString(html,"text/html"),out=[];
 doc.querySelectorAll(".tgme_widget_message").forEach(function(m){var id=m.getAttribute("data-post"),t=m.querySelector(".tgme_widget_message_text"),tm=m.querySelector("time");
 if(!id||!t)return;var ms=tm&&tm.getAttribute("datetime")?Date.parse(tm.getAttribute("datetime")):NaN;if(isNaN(ms))return;
@@ -389,6 +398,9 @@ if(!ST.asked){ST.asked=true;save();tryp(function(){return A.askPermissions()});s
 configureNative()}
 ST.pitch=Math.min(1,Math.max(0.1,+ST.pitch||0.5));ST.rate=Math.min(1.2,Math.max(0.6,+ST.rate||0.85));function showSl(){$("pitchR").value=ST.pitch;$("rateR").value=ST.rate;$("pv").textContent=ST.pitch.toFixed(2);$("rv").textContent=ST.rate.toFixed(2)}showSl();
 $("pitchR").oninput=function(){ST.pitch=+this.value;save();showSl()};$("rateR").oninput=function(){ST.rate=+this.value;save();showSl()};
+function showDiag(){var A=CP("Alerts"),b=$("diagBox");if(!A){b.textContent="Діагностика доступна лише в додатку";return}
+tryp(function(){return A.status().then(function(r){b.textContent="Служба: "+r.svc+"\nГолос: "+r.tts+"\nОстанні події:\n"+r.log})})}
+$("diagBtn").onclick=showDiag;
 $("ttsBtn").onclick=function(){var A=CP("Alerts");if(A)tryp(function(){return A.ttsSettings()})};
 $("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voiceName=this.value}save();pickVoice()};
 document.addEventListener("click",unlockAudio,{once:true});
