@@ -60,6 +60,7 @@ nav button span{font-size:24px}nav button.on{background:var(--accd);color:var(--
 .x{float:right;background:var(--acc);color:#111;border:0;border-radius:50%;width:48px;height:48px;font-size:24px}
 a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 .hide{display:none}
+.pill.mute{background:#7a2a2a;color:#fff}
 </style>
 </head>
 <body>
@@ -67,22 +68,12 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <header>
 <button class="pill" id="hromady">Громади <span class="badge" id="hcount">3</span></button>
 <span class="sp"></span>
-<button class="ibtn" id="soundIco">🔊</button>
-<button class="sw on" id="soundSw" aria-label="Звук"></button>
+<button class="pill" id="soundIco" style="padding:12px 16px" aria-label="Звук">🔊</button>
 <button class="pill" id="setBtn" style="padding:12px 16px">⚙️</button>
 </header>
 <section id="tab-feed">
 <div class="banner hide" id="okBanner"><b>Працюють наші</b><span>Слава Україні</span></div>
 <div id="feed"></div>
-</section>
-<section id="tab-report" class="hide">
-<h2>Оповістіть нас зручним способом</h2>
-<h4>Напишіть нам</h4>
-<div class="chips" id="types"></div>
-<div class="chips" id="acts" style="margin-top:8px"></div>
-<select id="rcomm" style="width:100%;margin-top:12px;background:var(--card2);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:16px;font-size:16px"></select>
-<input type="text" id="place" placeholder="Район або орієнтир, інша важлива інформація.">
-<button class="send" id="send">Надіслати</button>
 </section>
 <section id="tab-acc" class="hide">
 <div class="card"><h3>Про додаток</h3><div style="color:var(--muted);font-size:19px;line-height:1.4">Оперативна інформація про загрози для Запоріжжя та населених пунктів Запорізького району.</div></div>
@@ -92,7 +83,6 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 </div>
 <nav><div>
 <button data-t="feed" class="on"><span>❗</span>Загрози</button>
-<button data-t="report"><span>💬</span>Сповістити</button>
 <button data-t="acc"><span>👤</span>Акаунт</button>
 </div></nav>
 <div class="modal" id="hmodal"><div class="sheet">
@@ -105,6 +95,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="sec" style="margin-top:34px">Тема оформлення</div>
 <div class="seg" id="theme"><button data-v="system" class="on">Системна</button><button data-v="light">Світла</button><button data-v="dark">Темна</button></div>
 <div class="sec">Сповіщення про загрози</div>
+<div class="line"><span>Перевіряти канали кожні</span><select id="pollSel" style="background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:16px"><option value="5">5 с</option><option value="10">10 с</option><option value="30">30 с</option><option value="60">1 хв</option></select></div>
 <div class="line"><span>Не гасити екран</span><button class="sw" id="wakeSw"></button></div>
 <div class="line"><span>Працювати у фоні (з вимкненим екраном)</span><button class="sw" id="bgSw"></button></div>
 <div class="line" id="notLine"><span>Системні сповіщення</span><button class="sw" id="notSw"></button></div>
@@ -123,10 +114,6 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <textarea id="srcList" rows="4" placeholder="назва_каналу_1&#10;назва_каналу_2"></textarea>
 <button class="send ready" id="srcSave">Зберегти джерела</button>
 <div class="demo" id="srcStat" style="text-align:left;margin:6px 0;white-space:pre-line">Джерел немає</div>
-<div class="sec">Підключення до сервера</div>
-<textarea id="fbcfg" rows="5" placeholder="Вставте firebaseConfig із консолі Firebase"></textarea>
-<button class="send ready" id="fbSave">Підключити</button>
-<div class="demo" id="srvStat" style="text-align:left;margin:6px 0">Сервер не підключено</div>
 <div class="sec">Розклад голосових сповіщень</div>
 <div class="line"><span>Розклад сповіщень увімкнено</span><button class="sw" id="schSw"></button></div>
 <div class="line"><span>Початок сповіщень</span><input type="time" id="t1" value="04:00"></div>
@@ -147,7 +134,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <script>
 window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
 var GROUPS=[["🏙 Обласний центр та передмістя",["Запоріжжя","Балабине","Кушугум","Малокатеринівка","Нижня Хортиця","Новоолександрівка"]],["💥 Прифронтова зона",["Оріхів","Гуляйполе","Степногірськ","Мала Токмачка","Преображенка"]],["🚜 Запорізький район",["Вільнянськ","Комишуваха","Широке","Біленьке","Долинське","Матвіївка","Новомиколаївка","Воздвижівка","Михайлівка","Павлівка","Петро-Михайлівка","Степне","Тернувате"]]],COMM=[].concat.apply([],GROUPS.map(function(g){return g[1]}));
-var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua\nivan_fedorov_zp\nzaporizhzhiacitycouncil\nUkraineAlertBot\nradar_zp\ntryvoga_zp\nvanek_nikolaev\nmonitorwar\nmon1tor_ua\nlachenpyshe\ne_radar\nDeepStateUA\nzp_news\nkushugumtg\nshiroke_gromada\nvilniansk_mrada\norikhiv_mrada\ngulyaypole_mrada\npologi_rada\nstepnogirsk_tg\nvasilivkarda\nveselyy_pivden\nzaborzp\nzaporizka_sish\ninfo_zp\nukraine_3CY_HUB\nzp_zaporozie\neto_zp\nwar_monitor\nradar_zaporizhzhya\ntruexazaporozie"};
+var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,poll:5,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua\nivan_fedorov_zp\nzaporizhzhiacitycouncil\nUkraineAlertBot\nradar_zp\ntryvoga_zp\nvanek_nikolaev\nmonitorwar\nmon1tor_ua\nlachenpyshe\ne_radar\nDeepStateUA\nzp_news\nkushugumtg\nshiroke_gromada\nvilniansk_mrada\norikhiv_mrada\ngulyaypole_mrada\npologi_rada\nstepnogirsk_tg\nvasilivkarda\nveselyy_pivden\nzaborzp\nzaporizka_sish\ninfo_zp\nukraine_3CY_HUB\nzp_zaporozie\neto_zp\nwar_monitor\nradar_zaporizhzhya\ntruexazaporozie"};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
 function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{configureNative()}catch(e){}}
 var $=function(i){return document.getElementById(i)};
@@ -169,40 +156,21 @@ return '<div class="line"><span>'+c+'</span><button class="sw'+(on?" on":"")+'" 
 }
 function applyTheme(){var r=document.documentElement;if(ST.theme==="system")r.removeAttribute("data-theme");else r.setAttribute("data-theme",ST.theme);
 Array.prototype.forEach.call($("theme").children,function(b){b.classList.toggle("on",b.dataset.v===ST.theme)})}
-function applySw(){$("soundSw").classList.toggle("on",ST.sound);$("soundIco").textContent=ST.sound?"🔊":"🔇";
+function applySw(){$("soundIco").textContent=ST.sound?"🔊":"🔇 Тихо";$("soundIco").classList.toggle("mute",!ST.sound);
 $("schSw").classList.toggle("on",ST.sch);$("silSw").classList.toggle("on",ST.sil);$("wakeSw").classList.toggle("on",ST.wake);$("bgSw").classList.toggle("on",ST.bg);$("notSw").classList.toggle("on",ST.notif);$("t1").value=ST.t1;$("t2").value=ST.t2;
 $("t1").disabled=$("t2").disabled=!ST.sch;$("t1").style.opacity=$("t2").style.opacity=ST.sch?1:.5}
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
 document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
-["feed","report","acc"].forEach(function(t){$("tab-"+t).classList.toggle("hide",t!==b.dataset.t)});window.scrollTo(0,0)}});
+["feed","acc"].forEach(function(t){$("tab-"+t).classList.toggle("hide",t!==b.dataset.t)});window.scrollTo(0,0)}});
 $("hromady").onclick=function(){$("hmodal").classList.add("open")};
 $("setBtn").onclick=function(){$("smodal").classList.add("open");try{showDiag()}catch(e){}try{showSl()}catch(e){}};
 document.querySelectorAll("[data-close]").forEach(function(b){b.onclick=function(){b.closest(".modal").classList.remove("open")}});
 $("hlist").onclick=function(e){var c=e.target.dataset.c;if(!c)return;var i=ST.comm.indexOf(c);if(i>-1)ST.comm.splice(i,1);else ST.comm.push(c);save();renderHromady();renderFeed()};
-$("soundSw").onclick=function(){ST.sound=!ST.sound;save();applySw()};
+$("soundIco").onclick=function(){ST.sound=!ST.sound;save();applySw();if(!ST.sound){try{speechSynthesis.cancel()}catch(e){}toast("Безвучний режим: голос і звук сповіщень вимкнено")}else toast("Звук увімкнено")};
 $("schSw").onclick=function(){ST.sch=!ST.sch;save();applySw()};
 $("silSw").onclick=function(){ST.sil=!ST.sil;save();applySw()};
 $("t1").onchange=function(){ST.t1=this.value;save()};$("t2").onchange=function(){ST.t2=this.value;save()};
 $("theme").onclick=function(e){if(e.target.dataset.v){ST.theme=e.target.dataset.v;save();applyTheme()}};
-var TYPES=["FPV","Артобстріл","Шахед","Ракета","КАБ"],ACTS=["Виявлено","Падіння","Детонація","Збито"];
-var selT=null,selA=null;
-function chips(id,arr,get,set){$(id).innerHTML=arr.map(function(a){return '<button class="chip'+(get()===a?" sel":"")+'">'+a+'</button>'}).join("");
-Array.prototype.forEach.call($(id).children,function(b){b.onclick=function(){set(get()===b.textContent?null:b.textContent);chips(id,arr,get,set);chk()}})}
-function chk(){$("send").classList.toggle("ready",!!(selT&&selA))}
-chips("types",TYPES,function(){return selT},function(v){selT=v});
-chips("acts",ACTS,function(){return selA},function(v){selA=v});
-$("send").onclick=async function(){
-if(!selT||!selA)return;
-if(!db||!FS){toast("Спершу підключіть сервер: Налаштування → Підключення");return}
-var last=+localStorage.getItem("zplast")||0;
-if(Date.now()-last<60000){toast("Зачекайте хвилину перед наступним повідомленням");return}
-var p=$("place").value.trim().slice(0,140),cm=$("rcomm").value;
-try{await FS.addDoc(FS.collection(db,"reports"),{type:TLABEL[selT]||selT,action:selA,place:p,comm:cm,ts:FS.serverTimestamp()});
-try{localStorage.setItem("zplast",String(Date.now()))}catch(e){}
-selT=selA=null;$("place").value="";
-chips("types",TYPES,function(){return selT},function(v){selT=v});chips("acts",ACTS,function(){return selA},function(v){selA=v});chk();
-toast("Повідомлення надіслано");document.querySelector('nav button[data-t="feed"]').click()}
-catch(e){toast("Не вдалось надіслати: "+(e.code||e.message))}};
 var clips={},DB=null,PH=["Увага","Загроза FPV","Загроза шахедів","Артобстріл","Виявлено","Падіння","Детонація","Збито","Ракета","КАБ","Відбій тривоги","Впав в акваторії","Падіння і детонація","Загроза дронів","Вибух","Загроза Молнія","Загроза БпЛА"].concat(COMM);
 function dbOpen(cb){try{var r=indexedDB.open("zpvoice",1);r.onupgradeneeded=function(){r.result.createObjectStore("c")};
 r.onsuccess=function(){DB=r.result;cb()};r.onerror=function(){cb()}}catch(e){cb()}}
@@ -251,8 +219,9 @@ o.type="square";o.frequency.value=d?660:880;g.gain.value=.15;o.connect(g);g.conn
 var vstat="";
 function setStat(t){vstat=t;var e=$("vstat");if(e)e.textContent=t}
 function toast(t){var d=document.createElement("div");d.textContent=t;d.style.cssText="position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top,0px));z-index:99;background:var(--acc);color:#111;padding:14px 16px;border-radius:16px;font-size:16px;font-weight:600;text-align:center";document.body.appendChild(d);setTimeout(function(){d.remove()},4500)}
-function speechFix(t){return t.replace(/(?<![\p{L}])FPV(?![\p{L}])/giu,"Еф-Пі-Ві").replace(/фпв/giu,"Еф-Пе-Ве").replace(/БпЛА/giu,"Бе-Пе-Ел-А").replace(/(?<![\p{L}])каб(?![\p{L}])/giu,"Ка-А-Бе").replace(/ППО/g,"Пе-Пе-О").replace(/ЗСУ/g,"Зе-Се-У")}
+function speechFix(t){return t.replace(/(?<![\p{L}])FPV(?![\p{L}])/giu,"Еф-Пі-Ві").replace(/фпв/giu,"Еф-Пе-Ве").replace(/БпЛА/giu,"Бе-Пе-Ел-А").replace(/(?<![\p{L}])кабів(?![\p{L}])/giu,"керованих авіабомб").replace(/(?<![\p{L}])каби(?![\p{L}])/giu,"керовані авіабомби").replace(/(?<![\p{L}])каб(?![\p{L}])/giu,"керована авіабомба").replace(/ППО/g,"Пе-Пе-О").replace(/ЗСУ/g,"Зе-Се-У")}
 function speak(text,tryN){tryN=tryN||0;
+if(!ST.sound){toast("Безвучний режим увімкнено кнопкою зверху");return}
 text=speechFix(text);
 var A0=CP("Alerts");
 if(A0&&tryN===0){setStat("🔊 Озвучується (системний голос Android)");tryp(function(){return A0.speak({text:text})});setTimeout(function(){tryp(function(){return A0.status().then(function(r){setStat("Голос: "+r.tts+" | Служба: "+r.svc)})})},2500);return}
@@ -282,21 +251,21 @@ function recentSkip(type,comm,street,dir){var rn=Date.now(),win=type==="Відб
 if(street){var e=RECENT[k];if(e&&rn-e.t<win&&(e.d||!hd))skip=true}
 else{var any=false,anyd=false;for(var x in RECENT){if(x.indexOf(base)===0&&rn-RECENT[x].t<win){any=true;if(RECENT[x].d)anyd=true}}if(any&&(anyd||!hd))skip=true}
 if(!skip)RECENT[k]={t:rn,d:hd};return skip}
-function announce(type,place,action,comm,street,dir){
+function announce(type,place,action,comm,street,dir,qual){
 if(CP("Alerts")&&ST.bg)return;
 if(recentSkip(type,comm,street,dir))return;
 var allc=type==="Відбій тривоги";
 var where=(comm||place||"")+(street&&!allc?", "+street:"");
 var dd=(!allc&&dir)?dir.charAt(0).toUpperCase()+dir.slice(1):"";
-var text=allc?("Відбій тривоги. "+where+"."):("Увага! "+type+". "+where+". "+action+"."+(dd?" "+dd+".":""));
+var tq=type+(qual&&!allc?" "+qual:"");var text=allc?("Відбій тривоги. "+where+"."):("Увага! "+tq+". "+where+". "+action+"."+(dd?" "+dd+".":""));
 if(ST.sound&&inSchedule()){if(navigator.vibrate)navigator.vibrate([300,150,300,150,600]);
-var ks=allc?[type,comm]:["Увага",type,comm,action];if(!street&&!dd&&clips[type]&&(allc||clips[action])){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
+var ks=allc?[type,comm]:["Увага",type,comm,action];if(!street&&!dd&&!qual&&clips[type]&&(allc||clips[action])){playClips(ks.filter(function(k){return clips[k]}))}else speak(text)}
 notify(type,allc?where:(where+" — "+action+(dd?". "+dd:"")));
 }
 function srcs(){return String(ST.src||"").split(/[\s,]+/).map(function(x){return x.replace(/^.*t\.me\/(s\/)?/,"").replace(/^@/,"").replace(/[^\w]/g,"")}).filter(Boolean).filter(function(x,i,a){var l=x.toLowerCase();return a.map(function(y){return y.toLowerCase()}).indexOf(l)===i}).slice(0,40)}
 var NB="(?<![а-яіїєґa-z])",NE="(?![а-яіїєґa-z])";
 function R(w){return new RegExp(NB+"(?:"+w+")",'i')}
-var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза Молнія",R("молні|молни")],["Загроза шахедів",R("шахед|shahed|герань|геран")],["Загроза БпЛА",R("бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")],["Вибух",R("вибух|детонац|прильот")],["Загроза дронів",R("дрон")]];
+var RT=[["Загроза FPV",R("fpv|фпв|камікадзе")],["Загроза Молнія",R("молні|молни")],["Загроза шахедів",R("шахед|shahed|герань|геран")],["Загроза БпЛА",R("бпла|безпілотник")],["Ракета",R("ракет|іскандер|калібр")],["КАБ",new RegExp(NB+"(?:каб(?:и|ів|ам|ами|ах|у|ом)?|авіабомб)"+NE,'i')],["Артобстріл",R("обстріл|артобстріл|приліт|артилері|міномет|смерч")],["Вибух",R("вибух|детонац|прильот")],["Загроза дронів",R("дрон")]];
 var RC=[["Балабине",R("балабин")],["Новоолександрівка",R("новоолександрів")],["Малокатеринівка",R("малокатерин")],["Комишуваха",R("комишува")],["Кушугум",R("кушуг")],["Нижня Хортиця",R("хортиц")],["Оріхів",R("оріхів|оріхов")],["Гуляйполе",R("гуляйпол")],["Степногірськ",R("степногірськ")],["Мала Токмачка",R("токмачк")],["Преображенка",R("преображенк")],["Вільнянськ",R("вільнянськ")],["Широке",R("широківськ|широке(?![а-яіїєґa-z])")],["Біленьке",R("біленьк")],["Долинське",R("долинськ")],["Матвіївка",R("матвіївк|матвіївськ")],["Новомиколаївка",R("новомиколаїв")],["Воздвижівка",R("воздвиж")],["Петро-Михайлівка",R("петро-?михайлів")],["Михайлівка",R("михайлівк")],["Павлівка",R("павлівк|павлівськ")],["Степне",R("степненськ|степне(?![а-яіїєґa-z])")],["Тернувате",R("тернуват")],["Запоріжжя",R("запоріж|запорізьк")]];
 var RKILL=R("збит|знищен|збили"),RDET=R("детонац|вибух"),RFALL=R("падін|влуч|приліт|впав|впал"),RAKV=R("акватор"),RALL=R("відбій|відбою");
 var RNEG=R("стають|посилюємо|допомагаємо|експерт|аналітик|підсумк|статистик|за ніч|за добу|за минул|протягом доби|станом на|донат|підтримай"),REVT=R("виявлен|летить|летять|літає|літають|напрямк|курсом|група|груп|прилітал|приліт|вибух|детонац|влуч|падін|впав|впал|збит|знищен|обстріл|атак|заходить|заходять|рухається|рухаються|прямує|прямують|над ");
@@ -318,6 +287,8 @@ function direction(text){var t=text.replace(/https?:\/\/\S+/g,"").replace(/@\w+/
 var rest=t.slice(m.index),cut=rest.length;[".","!","?",";","("].forEach(function(c){var i=rest.indexOf(c);if(i>=0&&i<cut)cut=i});
 rest=rest.slice(0,cut).replace(/[^\p{L}\p{N}\s,'’ʼ-]/gu,"").replace(/\s+/g," ").trim();
 var w=rest.split(" ");if(w.length<2)return "";var AB={"вул":"вулиця","просп":"проспект","пров":"провулок","бул":"бульвар","пл":"площа","мкр":"мікрорайон","смт":"селище","р-н":"район"};return w.slice(0,8).map(function(x){return AB[x.toLowerCase()]||x}).join(" ").replace(/,$/,"")}
+var RQ=/(?<![а-яіїєґ])(невідомого типу|невідомий тип|типу\s+\p{L}+(?:-\p{L}+)?|ударн\p{L}*|розвідувальн\p{L}*)/iu;
+function qualifier(text,type){if(type!=="Загроза БпЛА"&&type!=="Загроза дронів")return "";var m=RQ.exec(text);return m?m[1].toLowerCase():""}
 function classify(text){var type=null,comm=null,action="Виявлено",i;if(!okText(text))return null;
 if(RALL.test(text)){type="Відбій тривоги";action="Відбій"}
 else{for(i=0;i<RT.length;i++)if(RT[i][1].test(text)){type=RT[i][0];break}
@@ -327,7 +298,7 @@ if(!comm)return null;
 if(type!=="Відбій тривоги"){var f=RFALL.test(text),d=RDET.test(text);
 action=RKILL.test(text)?"Збито":(f&&RAKV.test(text)?"Впав в акваторії":(f&&d?"Падіння і детонація":(d?"Детонація":(f?"Падіння":"Виявлено"))))}
 var allc2=type==="Відбій тривоги",dr=allc2?"":direction(text);
-return {type:type,comm:comm,action:action,street:allc2?"":streets(text).filter(function(x){return dr.toLowerCase().indexOf(x.toLowerCase())<0}).join(" і "),dir:dr}}
+return {type:type,comm:comm,action:action,street:allc2?"":streets(text).filter(function(x){return dr.toLowerCase().indexOf(x.toLowerCase())<0}).join(" і "),dir:dr,qual:qualifier(text,type)}}
 function parseTg(html){var doc=new DOMParser().parseFromString(html,"text/html"),out=[];
 doc.querySelectorAll(".tgme_widget_message").forEach(function(m){var id=m.getAttribute("data-post"),t=m.querySelector(".tgme_widget_message_text"),tm=m.querySelector("time");
 if(!id||!t)return;var ms=tm&&tm.getAttribute("datetime")?Date.parse(tm.getAttribute("datetime")):NaN;if(isNaN(ms))return;
@@ -348,12 +319,16 @@ var msgs=parseTg(await r.text()),now=Date.now(),items=[],n=0;
 if(!msgs.length)throw new Error("канал не знайдено або закритий");
 msgs.forEach(function(m){if(now-m.ms<20*60000&&RW.test(m.text)&&findComm(m.text))okMs[ch]=Math.max(okMs[ch]||0,m.ms);var c=classify(m.text);if(!c)return;n++;
 if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch});
-if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm,c.street,c.dir)}});
+if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm,c.street,c.dir,c.qual)}});
 saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;
 }catch(e){srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
 showSrc();updateBanner();renderFeed()}
 function pollAll(){var l=srcs();Object.keys(chFeed).forEach(function(k){if(l.indexOf(k)<0)delete chFeed[k]});l.forEach(pollOne);showSrc();renderFeed()}
-setInterval(function(){if(!document.hidden||(isNative()&&ST.bg))pollAll()},30000);
+var polling=false;
+function pollTick(){var svc=!!(CP("Alerts")&&ST.bg),iv=Math.max(5,+ST.poll||5)*(svc?3:1)*1000;
+if(!document.hidden&&!polling){polling=true;try{pollAll()}catch(e){}setTimeout(function(){polling=false},Math.min(iv,8000))}
+setTimeout(pollTick,iv)}
+setTimeout(pollTick,5000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)pollAll()});
 $("srcSave").onclick=function(){unlockAudio();ST.src=$("srcList").value;save();srcMsg={};pollAll()};
 var DEFAULT_FB="";
@@ -377,7 +352,6 @@ first=false;srvState="on";setSrv("✅ Підключено");renderFeed()},
 function(err){srvState="off";setSrv("Помилка: "+(err.code||err.message));renderFeed()});
 }catch(e){srvState="off";setSrv("Не вдалось підключитись: "+e.message);renderFeed()}
 }
-$("fbSave").onclick=function(){unlockAudio();ST.fb=$("fbcfg").value;save();connect()};
 $("testBtn").onclick=function(){unlockAudio();var ks=["Увага","Загроза FPV","Запоріжжя","Виявлено"];if(clips["Загроза FPV"]&&clips["Виявлено"])playClips(ks.filter(function(k){return clips[k]}));else speak("Увага! Загроза FPV. Запоріжжя. Виявлено. Це перевірка голосу.")};
 async function setWake(on){
 try{if(on&&"wakeLock" in navigator){wl=await navigator.wakeLock.request("screen");wl.addEventListener("release",function(){wl=null})}
@@ -390,7 +364,7 @@ if(!ST.notif){var r=Notification.permission==="granted"?"granted":await Notifica
 save();applySw()};
 $("bgSw").onclick=function(){ST.bg=!ST.bg;save();applySw();applyBg()};
 function configureNative(){var A=CP("Alerts");if(!A)return;
-tryp(function(){return A.configure({enabled:!!ST.bg,src:srcs(),comm:ST.comm,sound:!!ST.sound,sch:!!ST.sch,t1:ST.t1,t2:ST.t2,pitch:ST.pitch,rate:ST.rate})})}
+tryp(function(){return A.configure({poll:ST.poll,enabled:!!ST.bg,src:srcs(),comm:ST.comm,sound:!!ST.sound,sch:!!ST.sch,t1:ST.t1,t2:ST.t2,pitch:ST.pitch,rate:ST.rate})})}
 function applyBg(){configureNative();var A=CP("Alerts");
 if(A&&ST.bg){tryp(function(){return A.askPermissions()});setTimeout(function(){tryp(function(){return A.batterySettings()})},1500)}}
 async function nativeInit(){if(!isNative())return;var A=CP("Alerts");if(!A)return;$("notLine").style.display="none";
@@ -401,13 +375,14 @@ $("pitchR").oninput=function(){ST.pitch=+this.value;save();showSl()};$("rateR").
 function showDiag(){var A=CP("Alerts"),b=$("diagBox");if(!A){b.textContent="Діагностика доступна лише в додатку";return}
 tryp(function(){return A.status().then(function(r){b.textContent="Служба: "+r.svc+"\nГолос: "+r.tts+"\nОстанні події:\n"+r.log})})}
 $("diagBtn").onclick=showDiag;
+$("pollSel").value=String(ST.poll);$("pollSel").onchange=function(){ST.poll=+this.value;save()};
 $("ttsBtn").onclick=function(){var A=CP("Alerts");if(A)tryp(function(){return A.ttsSettings()})};
 $("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voiceName=this.value}save();pickVoice()};
 document.addEventListener("click",unlockAudio,{once:true});
 if(ST.wake)setWake(true);
 renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
-$("rcomm").innerHTML=COMM.map(function(c){return '<option>'+c+'</option>'}).join("");if((ST.srcVer||0)<4){var have=String(ST.src||"").split(/[\s,]+/).filter(Boolean),low=have.map(function(x){return x.toLowerCase()});"eyes_everywhere_ua monitorsmy operatyvnohlep gnilayachereha kpszsu zoda_gov_ua ivan_fedorov_zp zaporizhzhiacitycouncil UkraineAlertBot radar_zp tryvoga_zp vanek_nikolaev monitorwar mon1tor_ua lachenpyshe e_radar DeepStateUA zp_news kushugumtg shiroke_gromada vilniansk_mrada orikhiv_mrada gulyaypole_mrada pologi_rada stepnogirsk_tg vasilivkarda veselyy_pivden zaborzp zaporizka_sish info_zp ukraine_3CY_HUB zp_zaporozie eto_zp war_monitor radar_zaporizhzhya truexazaporozie".split(" ").forEach(function(x){if(low.indexOf(x.toLowerCase())<0){have.push(x);low.push(x.toLowerCase())}});ST.src=have.join("\n");ST.srcVer=4;save()}
-$("fbcfg").value=ST.fb||"";$("srcList").value=ST.src||"";connect();pollAll();setInterval(updateBanner,30000);nativeInit();
+if((ST.srcVer||0)<4){var have=String(ST.src||"").split(/[\s,]+/).filter(Boolean),low=have.map(function(x){return x.toLowerCase()});"eyes_everywhere_ua monitorsmy operatyvnohlep gnilayachereha kpszsu zoda_gov_ua ivan_fedorov_zp zaporizhzhiacitycouncil UkraineAlertBot radar_zp tryvoga_zp vanek_nikolaev monitorwar mon1tor_ua lachenpyshe e_radar DeepStateUA zp_news kushugumtg shiroke_gromada vilniansk_mrada orikhiv_mrada gulyaypole_mrada pologi_rada stepnogirsk_tg vasilivkarda veselyy_pivden zaborzp zaporizka_sish info_zp ukraine_3CY_HUB zp_zaporozie eto_zp war_monitor radar_zaporizhzhya truexazaporozie".split(" ").forEach(function(x){if(low.indexOf(x.toLowerCase())<0){have.push(x);low.push(x.toLowerCase())}});ST.src=have.join("\n");ST.srcVer=4;save()}
+$("srcList").value=ST.src||"";pollAll();setInterval(updateBanner,30000);nativeInit();
 </script>
 </body>
 </html>
