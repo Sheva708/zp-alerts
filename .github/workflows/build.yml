@@ -42,7 +42,7 @@ jobs:
 
           public class Parser {
               public static class Msg { public String id; public String text; public long ms; }
-              public static class Res { public String type; public String comm; public String action; public String street = ""; public String dir = ""; }
+              public static class Res { public String type; public String comm; public String action; public String street = ""; public String dir = ""; public String qual = ""; }
 
               private static final Pattern POST = Pattern.compile("<div class=\"tgme_widget_message(?: [^\"]*)?\"[^>]*?data-post=\"([^\"]+)\"");
               private static final Pattern TEXT = Pattern.compile("<div class=\"tgme_widget_message_text js-message_text\"[^>]*>(.*?)</div>", Pattern.DOTALL);
@@ -59,7 +59,7 @@ jobs:
                   r("шахед|shahed|герань|геран"),
                   r("бпла|безпілотник"),
                   r("ракет|іскандер|калібр"),
-                  Pattern.compile(NB + "(?:каб|авіабомб)(?![\\p{L}])", FL),
+                  Pattern.compile(NB + "(?:каб(?:и|ів|ам|ами|ах|у|ом)?|авіабомб)(?![\\p{L}])", FL),
                   r("обстріл|артобстріл|приліт|артилері|міномет|смерч"),
                   r("вибух|детонац|прильот"),
                   r("дрон")
@@ -132,6 +132,14 @@ jobs:
                   return out;
               }
 
+              private static final Pattern RQ = Pattern.compile("(?<![\\p{L}])(?iu:(невідомого типу|невідомий тип|типу\\s+\\p{L}+(?:-\\p{L}+)?|ударн\\p{L}*|розвідувальн\\p{L}*))");
+
+              static String qualifier(String text, String type) {
+                  if (!"Загроза БпЛА".equals(type) && !"Загроза дронів".equals(type)) return "";
+                  Matcher m = RQ.matcher(text);
+                  return m.find() ? m.group(1).toLowerCase(Locale.ROOT) : "";
+              }
+
               static boolean okText(String t) {
                   if (t.length() > 400 || RNEG.matcher(t).find()) return false;
                   if (t.length() > 140 && !REVT.matcher(t).find()) return false;
@@ -160,7 +168,9 @@ jobs:
                   return s.replaceAll("(?iu)(?<![\\p{L}])FPV(?![\\p{L}])", "Еф-Пі-Ві")
                       .replaceAll("(?iu)фпв", "Еф-Пе-Ве")
                       .replaceAll("(?iu)БпЛА", "Бе-Пе-Ел-А")
-                      .replaceAll("(?iu)(?<![\\p{L}])каб(?![\\p{L}])", "Ка-А-Бе")
+                      .replaceAll("(?iu)(?<![\\p{L}])кабів(?![\\p{L}])", "керованих авіабомб")
+                      .replaceAll("(?iu)(?<![\\p{L}])каби(?![\\p{L}])", "керовані авіабомби")
+                      .replaceAll("(?iu)(?<![\\p{L}])каб(?![\\p{L}])", "керована авіабомба")
                       .replace("ППО", "Пе-Пе-О")
                       .replace("ЗСУ", "Зе-Се-У");
               }
@@ -240,6 +250,7 @@ jobs:
                   Res res = new Res();
                   res.type = type; res.comm = comm; res.action = action;
                   res.dir = "Відбій тривоги".equals(type) ? "" : direction(text);
+                  res.qual = qualifier(text, type);
                   res.street = "Відбій тривоги".equals(type) ? "" : dedupeStreets(streets(text), res.dir);
                   return res;
               }
@@ -349,6 +360,7 @@ jobs:
           public class AlertService extends Service implements TextToSpeech.OnInitListener {
               static final String CH_BG = "zp_bg";
               static final String CH_ALERT = "zp_alert";
+              static final String CH_QUIET = "zp_alert_quiet";
               static final String PREFS = "zp";
 
               static class Cfg {
@@ -359,6 +371,7 @@ jobs:
                   String t2 = "22:00";
                   float pitch = 0.5f;
                   float rate = 0.85f;
+                  int poll = 5;
                   List<String> src = new ArrayList<String>();
                   List<String> comm = new ArrayList<String>();
 
@@ -375,6 +388,7 @@ jobs:
                           cfg.t2 = o.optString("t2", "22:00");
                           cfg.pitch = (float) o.optDouble("pitch", 0.5);
                           cfg.rate = (float) o.optDouble("rate", 0.85);
+                          cfg.poll = Math.max(3, Math.min(300, o.optInt("poll", 5)));
                           JSONArray a = o.optJSONArray("src");
                           if (a != null) for (int i = 0; i < a.length(); i++) cfg.src.add(a.optString(i));
                           JSONArray b = o.optJSONArray("comm");
@@ -391,6 +405,16 @@ jobs:
               private final List<String> pending = Collections.synchronizedList(new ArrayList<String>());
               private PowerManager.WakeLock wl;
               private volatile long lastSpeak = 0;
+              private volatile long backoffUntil = 0;
+              private final SharedPreferences.OnSharedPreferenceChangeListener muteListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
+                  @Override
+                  public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
+                      if ("cfg".equals(key) && !Cfg.load(AlertService.this).sound) {
+                          pending.clear();
+                          try { if (tts != null) tts.stop(); } catch (Exception e) { }
+                      }
+                  }
+              };
               private final Set<String> announced = Collections.synchronizedSet(new LinkedHashSet<String>());
 
               @Override
@@ -402,6 +426,7 @@ jobs:
                   createChannels();
                   loadAnnounced();
                   tts = new TextToSpeech(getApplicationContext(), this);
+                  getSharedPreferences(PREFS, 0).registerOnSharedPreferenceChangeListener(muteListener);
               }
 
               @Override
@@ -470,6 +495,7 @@ jobs:
               @Override
               public void onDestroy() {
                   running = false;
+                  try { getSharedPreferences(PREFS, 0).unregisterOnSharedPreferenceChangeListener(muteListener); } catch (Exception e) { }
                   try { if (worker != null) worker.interrupt(); } catch (Exception e) { }
                   try { if (wl != null && wl.isHeld()) wl.release(); } catch (Exception e) { }
                   try { if (tts != null) { tts.stop(); tts.shutdown(); } } catch (Exception e) { }
@@ -479,8 +505,14 @@ jobs:
               private void loop() {
                   while (running) {
                       Cfg c = Cfg.load(this);
+                      long start = System.currentTimeMillis();
                       if (c.enabled) {
-                          ExecutorService ex = Executors.newFixedThreadPool(5);
+                          if (start < backoffUntil) {
+                              setSt("svc", "пауза: Telegram обмежив частоту запитів");
+                              try { Thread.sleep(5000); } catch (InterruptedException e) { break; }
+                              continue;
+                          }
+                          ExecutorService ex = Executors.newFixedThreadPool(10);
                           List<Future<String>> fs = new ArrayList<Future<String>>();
                           final Cfg cc = c;
                           for (final String ch : c.src) {
@@ -499,12 +531,21 @@ jobs:
                               } catch (Exception e) { }
                           }
                           ex.shutdownNow();
-                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + c.src.size() + (lastErr.length() > 0 ? "; остання помилка " + lastErr : ""));
-                      } else if (System.currentTimeMillis() - lastSpeak > 20000) {
-                          stopSelf();
-                          return;
+                          if (lastErr.contains("429")) {
+                              backoffUntil = System.currentTimeMillis() + 60000L;
+                              logEv("Telegram обмежив частоту (429), пауза 60 с");
+                          }
+                          long took = System.currentTimeMillis() - start;
+                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + c.src.size() + " за " + (took / 1000) + " с, кожні " + c.poll + " с" + (lastErr.length() > 0 ? "; остання помилка " + lastErr : ""));
+                          long wait = Math.max(1000L, c.poll * 1000L - took);
+                          try { Thread.sleep(wait); } catch (InterruptedException e) { break; }
+                      } else {
+                          if (System.currentTimeMillis() - lastSpeak > 20000) {
+                              stopSelf();
+                              return;
+                          }
+                          try { Thread.sleep(5000); } catch (InterruptedException e) { break; }
                       }
-                      try { Thread.sleep(c.enabled ? 30000 : 5000); } catch (InterruptedException e) { break; }
                   }
               }
 
@@ -565,7 +606,7 @@ jobs:
                   if (c.sound && inSchedule(c)) {
                       String sp;
                       if (allClear) sp = "Відбій тривоги. " + where + ".";
-                      else sp = "Увага! " + r.type + ". " + where + ". " + r.action + "." + (dd.length() > 0 ? " " + dd + "." : "");
+                      else sp = "Увага! " + r.type + ((r.qual != null && r.qual.length() > 0) ? " " + r.qual : "") + ". " + where + ". " + r.action + "." + (dd.length() > 0 ? " " + dd + "." : "");
                       say(sp);
                       logEv("озвучено: " + sp);
                   } else {
@@ -611,6 +652,7 @@ jobs:
               }
 
               private void say(String text) {
+                  if (!Cfg.load(this).sound) return;
                   lastSpeak = System.currentTimeMillis();
                   if (ttsReady) speakNow(text); else pending.add(text);
               }
@@ -619,6 +661,7 @@ jobs:
                   try {
                       text = Parser.speechFix(text);
                       Cfg c = Cfg.load(this);
+                      if (!c.sound) return;
                       tts.setPitch(c.pitch);
                       tts.setSpeechRate(c.rate);
                       int res = tts.speak(text, TextToSpeech.QUEUE_ADD, null, "zp" + System.nanoTime());
@@ -675,6 +718,11 @@ jobs:
                   al.enableVibration(true);
                   al.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
                   nm.createNotificationChannel(al);
+                  NotificationChannel qt = new NotificationChannel(CH_QUIET, "Загрози (без звуку)", NotificationManager.IMPORTANCE_LOW);
+                  qt.setSound(null, null);
+                  qt.enableVibration(false);
+                  qt.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                  nm.createNotificationChannel(qt);
               }
 
               private PendingIntent openIntent() {
@@ -699,14 +747,15 @@ jobs:
               private void notifyAlert(String title, String body) {
                   try {
                       NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-                      Notification n = new NotificationCompat.Builder(this, CH_ALERT)
+                      boolean snd = Cfg.load(this).sound;
+                      Notification n = new NotificationCompat.Builder(this, snd ? CH_ALERT : CH_QUIET)
                           .setSmallIcon(android.R.drawable.ic_dialog_alert)
                           .setContentTitle(title)
                           .setContentText(body)
                           .setPriority(NotificationCompat.PRIORITY_HIGH)
                           .setCategory(NotificationCompat.CATEGORY_ALARM)
                           .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                          .setDefaults(NotificationCompat.DEFAULT_ALL)
+                          .setDefaults(snd ? NotificationCompat.DEFAULT_ALL : 0)
                           .setAutoCancel(true)
                           .setContentIntent(openIntent())
                           .build();
