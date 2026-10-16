@@ -110,10 +110,8 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <button class="send" id="ttsBtn" style="margin-top:10px">⚙️ Налаштування голосу Android</button>
 <div class="demo" id="voiceNote" style="text-align:left;margin-top:10px">Гучність голосу така ж, як у медіа (кнопки гучності телефона). Щоб оповіщення лунали з вимкненим екраном, залишайте «Працювати у фоні» увімкненим.</div>
 <div class="sec">Джерела даних</div>
-<div class="demo" style="text-align:left;margin:0 0 6px">Публічні Telegram-канали, по одному на рядок (наприклад: nazva_kanalu, без @ і посилання). Додаток сам читає нові повідомлення й оповіщає про загрози в обраних громадах.</div>
-<textarea id="srcList" rows="4" placeholder="назва_каналу_1&#10;назва_каналу_2"></textarea>
-<button class="send ready" id="srcSave">Зберегти джерела</button>
-<div class="demo" id="srcStat" style="text-align:left;margin:6px 0;white-space:pre-line">Джерел немає</div>
+<div class="demo" style="text-align:left;margin:0 0 6px">Список каналів зафіксований і не змінюється. Тут видно, які канали зараз працюють (✅) і які ні (❌).</div>
+<div class="demo" id="srcStat" style="text-align:left;margin:6px 0;white-space:pre-line">Перевіряю канали…</div>
 <div class="sec">Розклад голосових сповіщень</div>
 <div class="line"><span>Розклад сповіщень увімкнено</span><button class="sw" id="schSw"></button></div>
 <div class="line"><span>Початок сповіщень</span><input type="time" id="t1" value="04:00"></div>
@@ -134,7 +132,8 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <script>
 window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
 var GROUPS=[["🏙 Обласний центр та передмістя",["Запоріжжя","Балабине","Кушугум","Малокатеринівка","Нижня Хортиця","Новоолександрівка"]],["💥 Прифронтова зона",["Оріхів","Гуляйполе","Степногірськ","Мала Токмачка","Преображенка"]],["🚜 Запорізький район",["Вільнянськ","Комишуваха","Широке","Біленьке","Долинське","Матвіївка","Новомиколаївка","Воздвижівка","Михайлівка","Павлівка","Петро-Михайлівка","Степне","Тернувате"]]],COMM=[].concat.apply([],GROUPS.map(function(g){return g[1]}));
-var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,poll:5,src:"eyes_everywhere_ua\nmonitorsmy\noperatyvnohlep\ngnilayachereha\nkpszsu\nzoda_gov_ua\nivan_fedorov_zp\nzaporizhzhiacitycouncil\nUkraineAlertBot\nradar_zp\ntryvoga_zp\nvanek_nikolaev\nmonitorwar\nmon1tor_ua\nlachenpyshe\ne_radar\nDeepStateUA\nzp_news\nkushugumtg\nshiroke_gromada\nvilniansk_mrada\norikhiv_mrada\ngulyaypole_mrada\npologi_rada\nstepnogirsk_tg\nvasilivkarda\nveselyy_pivden\nzaborzp\nzaporizka_sish\ninfo_zp\nukraine_3CY_HUB\nzp_zaporozie\neto_zp\nwar_monitor\nradar_zaporizhzhya\ntruexazaporozie"};
+var FIXED_SRC=["eyes_everywhere_ua", "monitorsmy", "operatyvnohlep", "gnilayachereha", "kpszsu", "zoda_gov_ua", "ivan_fedorov_zp", "zaporizhzhiacitycouncil", "radar_zp", "tryvoga_zp", "vanek_nikolaev", "monitorwar", "mon1tor_ua", "lachenpyshe", "e_radar", "DeepStateUA", "veselyy_pivden", "zaborzp", "zaporizka_sish", "info_zp", "ukraine_3CY_HUB", "zp_zaporozie", "eto_zp", "war_monitor", "radar_zaporizhzhya", "truexazaporozie"];
+var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,poll:5,src:FIXED_SRC.join("\n")};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
 function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{configureNative()}catch(e){}}
 var $=function(i){return document.getElementById(i)};
@@ -305,12 +304,12 @@ if(!id||!t)return;var ms=tm&&tm.getAttribute("datetime")?Date.parse(tm.getAttrib
 out.push({id:id,text:t.textContent.replace(/\s+/g," ").trim(),ms:ms})});return out}
 var ANN={};try{ANN=JSON.parse(localStorage.getItem("zpann")||"{}")}catch(e){}
 function saveAnn(){try{var k=Object.keys(ANN);if(k.length>400)k.slice(0,k.length-400).forEach(function(x){delete ANN[x]});localStorage.setItem("zpann",JSON.stringify(ANN))}catch(e){}}
-var srcMsg={};
+var srcMsg={},srcGone={};
 var RW=R("працю(є|ють)\\s+(наші|ппо|пво|протиповітряна|повітряна оборона)"),okMs={};
 function findComm(t){for(var i=0;i<RC.length;i++)if(RC[i][1].test(t))return RC[i][0];return null}
 function updateBanner(){var m=0;Object.keys(okMs).forEach(function(k){m=Math.max(m,okMs[k])});$("okBanner").classList.toggle("hide",!(m&&Date.now()-m<20*60000))}
 
-function showSrc(){var l=srcs();$("srcStat").textContent=l.length?l.map(function(c){return c+": "+(srcMsg[c]||"…")}).join("\n"):"Джерел немає"}
+function showSrc(){var l=srcs();$("srcStat").textContent=l.length?l.map(function(c){var m=srcMsg[c]||"⏳ перевіряю…";return m.charAt(0)+" "+c+" — "+m.slice(2)}).join("\n"):"Джерел немає"}
 async function pollOne(ch){
 try{
 var r=await fetch("https://t.me/s/"+encodeURIComponent(ch)+"?_="+Date.now());
@@ -320,8 +319,8 @@ if(!msgs.length)throw new Error("канал не знайдено або зак�
 msgs.forEach(function(m){if(now-m.ms<20*60000&&RW.test(m.text)&&findComm(m.text))okMs[ch]=Math.max(okMs[ch]||0,m.ms);var c=classify(m.text);if(!c)return;n++;
 if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch});
 if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm,c.street,c.dir,c.qual)}});
-saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;
-}catch(e){srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
+saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;srcGone[ch]=false;
+}catch(e){srcGone[ch]=/канал не знайдено|HTTP (400|403|404|410)/.test(String(e.message||e));srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
 showSrc();updateBanner();renderFeed()}
 function pollAll(){var l=srcs();Object.keys(chFeed).forEach(function(k){if(l.indexOf(k)<0)delete chFeed[k]});l.forEach(pollOne);showSrc();renderFeed()}
 var polling=false;
@@ -330,7 +329,7 @@ if(!document.hidden&&!polling){polling=true;try{pollAll()}catch(e){}setTimeout(f
 setTimeout(pollTick,iv)}
 setTimeout(pollTick,5000);
 document.addEventListener("visibilitychange",function(){if(!document.hidden)pollAll()});
-$("srcSave").onclick=function(){unlockAudio();ST.src=$("srcList").value;save();srcMsg={};pollAll()};
+
 var DEFAULT_FB="";
 var FS=null,db=null,first=true,unsub=null;
 function setSrv(t){var e=$("srvStat");if(e)e.textContent=t}
@@ -381,8 +380,8 @@ $("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voice
 document.addEventListener("click",unlockAudio,{once:true});
 if(ST.wake)setWake(true);
 renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
-if((ST.srcVer||0)<4){var have=String(ST.src||"").split(/[\s,]+/).filter(Boolean),low=have.map(function(x){return x.toLowerCase()});"eyes_everywhere_ua monitorsmy operatyvnohlep gnilayachereha kpszsu zoda_gov_ua ivan_fedorov_zp zaporizhzhiacitycouncil UkraineAlertBot radar_zp tryvoga_zp vanek_nikolaev monitorwar mon1tor_ua lachenpyshe e_radar DeepStateUA zp_news kushugumtg shiroke_gromada vilniansk_mrada orikhiv_mrada gulyaypole_mrada pologi_rada stepnogirsk_tg vasilivkarda veselyy_pivden zaborzp zaporizka_sish info_zp ukraine_3CY_HUB zp_zaporozie eto_zp war_monitor radar_zaporizhzhya truexazaporozie".split(" ").forEach(function(x){if(low.indexOf(x.toLowerCase())<0){have.push(x);low.push(x.toLowerCase())}});ST.src=have.join("\n");ST.srcVer=4;save()}
-$("srcList").value=ST.src||"";pollAll();setInterval(updateBanner,30000);nativeInit();
+ST.src=FIXED_SRC.join("\n");
+pollAll();setInterval(updateBanner,30000);nativeInit();
 </script>
 </body>
 </html>
