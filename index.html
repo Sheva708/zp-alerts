@@ -61,6 +61,7 @@ nav button span{font-size:24px}nav button.on{background:var(--accd);color:var(--
 a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 .hide{display:none}
 .pill.mute{background:#7a2a2a;color:#fff}
+.card[data-i]{cursor:pointer}
 </style>
 </head>
 <body>
@@ -85,6 +86,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <button data-t="feed" class="on"><span>❗</span>Загрози</button>
 <button data-t="acc"><span>👤</span>Акаунт</button>
 </div></nav>
+<div class="modal" id="lmodal"><div class="sheet"><button class="x" data-close>✕</button><h3>Де прочитати</h3><div class="demo" style="text-align:left;margin-top:30px">Це повідомлення з кількох каналів. Оберіть, який відкрити в Telegram:</div><div id="llist"></div></div></div>
 <div class="modal" id="hmodal"><div class="sheet">
 <button class="x" data-close>✕</button><h3>Громади</h3>
 <div class="sec" style="border:0">Оберіть громади для сповіщень</div>
@@ -95,7 +97,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="sec" style="margin-top:34px">Тема оформлення</div>
 <div class="seg" id="theme"><button data-v="system" class="on">Системна</button><button data-v="light">Світла</button><button data-v="dark">Темна</button></div>
 <div class="sec">Сповіщення про загрози</div>
-<div class="line"><span>Перевіряти канали кожні</span><select id="pollSel" style="background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:16px"><option value="5">5 с</option><option value="10">10 с</option><option value="30">30 с</option><option value="60">1 хв</option></select></div>
+<div class="line"><span>Перевіряти канали кожні</span><select id="pollSel" style="background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:16px"><option value="0">Авто (економно)</option><option value="5">5 с</option><option value="10">10 с</option><option value="30">30 с</option><option value="60">1 хв</option></select></div>
 <div class="line"><span>Не гасити екран</span><button class="sw" id="wakeSw"></button></div>
 <div class="line"><span>Працювати у фоні (з вимкненим екраном)</span><button class="sw" id="bgSw"></button></div>
 <div class="line" id="notLine"><span>Системні сповіщення</span><button class="sw" id="notSw"></button></div>
@@ -133,20 +135,26 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 window.onerror=function(m,u,l,c){var d=document.createElement("div");d.style.cssText="position:fixed;left:8px;right:8px;top:8px;z-index:999;background:#b00;color:#fff;padding:12px;border-radius:12px;font-size:13px";d.textContent="Помилка: "+m+" (рядок "+l+")";document.body.appendChild(d)};
 var GROUPS=[["🏙 Обласний центр та передмістя",["Запоріжжя","Балабине","Кушугум","Малокатеринівка","Нижня Хортиця","Новоолександрівка"]],["💥 Прифронтова зона",["Оріхів","Гуляйполе","Степногірськ","Мала Токмачка","Преображенка"]],["🚜 Запорізький район",["Вільнянськ","Комишуваха","Широке","Біленьке","Долинське","Матвіївка","Новомиколаївка","Воздвижівка","Михайлівка","Павлівка","Петро-Михайлівка","Степне","Тернувате"]]],COMM=[].concat.apply([],GROUPS.map(function(g){return g[1]}));
 var FIXED_SRC=["eyes_everywhere_ua", "monitorsmy", "operatyvnohlep", "gnilayachereha", "kpszsu", "zoda_gov_ua", "ivan_fedorov_zp", "zaporizhzhiacitycouncil", "radar_zp", "tryvoga_zp", "vanek_nikolaev", "monitorwar", "mon1tor_ua", "lachenpyshe", "e_radar", "DeepStateUA", "veselyy_pivden", "zaborzp", "zaporizka_sish", "info_zp", "ukraine_3CY_HUB", "zp_zaporozie", "eto_zp", "war_monitor", "radar_zaporizhzhya", "truexazaporozie"];
-var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,poll:5,src:FIXED_SRC.join("\n")};
+var ST={comm:["Запоріжжя","Балабине","Кушугум"],sound:true,theme:"system",sch:false,t1:"04:00",t2:"22:00",sil:false,wake:false,notif:false,voiceName:"",pitch:0.5,rate:0.85,bg:true,nvoice:-1,poll:0,src:FIXED_SRC.join("\n")};
 try{var s=JSON.parse(localStorage.getItem("zp")||"null");if(s)ST=Object.assign(ST,s)}catch(e){}
 function save(){try{localStorage.setItem("zp",JSON.stringify(ST))}catch(e){}try{configureNative()}catch(e){}}
 var $=function(i){return document.getElementById(i)};
-var srvFeed=[],chFeed={},srvState="off";function allFeed(){var r=srvFeed.slice();Object.keys(chFeed).forEach(function(k){r=r.concat(chFeed[k])});r.sort(function(a,b){return b.ms-a.ms});var seen={};return r.filter(function(x){var k=x.type+"|"+x.comm+"|"+x.action,l=seen[k];if(l&&Math.abs(l-x.ms)<600000)return false;seen[k]=x.ms;return true})}
+var srvFeed=[],chFeed={},srvState="off";function allFeed(){var r=srvFeed.slice();Object.keys(chFeed).forEach(function(k){r=r.concat(chFeed[k])});r.sort(function(a,b){return b.ms-a.ms});var out=[],kept={};
+r.forEach(function(x){var k=x.type+"|"+x.comm+"|"+x.action,kp=kept[k];
+if(kp&&Math.abs(kp.ms-x.ms)<600000){(x.links||[]).forEach(function(l){if(!kp.links.some(function(q){return q.id===l.id}))kp.links.push(l)});return}
+var y=Object.assign({},x);y.links=(x.links||[]).slice();kept[k]=y;out.push(y)});return out}
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
 var ICONS={"Загроза БпЛА":"🛸","Загроза Молнія":"🛩","Вибух":"💥","Загроза дронів":"🛸","Відбій тривоги":"✅","Загроза FPV":"🛸","Загроза шахедів":"✈️","Артобстріл":"💥","Ракета":"🚀","КАБ":"💣"};
 var TLABEL={"FPV":"Загроза FPV","Шахед":"Загроза шахедів","Артобстріл":"Артобстріл","Ракета":"Ракета","КАБ":"КАБ"};
 function hm(d){return ("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2)}
+var curList=[];
+function openLink(u){var A=CP("Alerts");if(A&&A.openUrl)tryp(function(){return A.openUrl({url:u})});else window.open(u,"_blank")}
+function showLinks(it){$("llist").innerHTML=it.links.map(function(l){return '<button class="send ready" data-u="https://t.me/'+esc(l.id)+'" style="margin-top:8px">📡 '+esc(l.ch)+' · '+esc(l.t)+'</button>'}).join("");$("lmodal").classList.add("open")}
 function renderFeed(){
 var list=allFeed().filter(function(r){return !r.comm||ST.comm.indexOf(r.comm)>-1});
 if(!list.length){var on=srvState==="on"||srcs().length>0;$("feed").innerHTML='<div class="card"><h3>'+(on?"Активних загроз немає":"Немає джерел даних")+'</h3><div class="row" style="color:var(--muted)">'+(on?"Нові повідомлення з’являться тут автоматично.":"Налаштування → Джерела даних.")+'</div></div>';return}
-$("feed").innerHTML=list.map(function(r){
-return '<div class="card"><h3><span class="ic">'+(ICONS[r.type]||"📍")+'</span>'+esc(r.type)+'</h3><div class="row"><span class="dot g"></span><span class="t">'+r.t+'</span>'+esc(r.action)+'</div>'+(r.place||r.comm?'<div class="row"><span class="dot s"></span><span class="t">'+r.t+'</span>'+esc([r.place,r.comm].filter(Boolean).join(" · "))+'</div>':'')+'</div>'}).join("");
+curList=list;$("feed").innerHTML=list.map(function(r,ix){
+return '<div class="card" data-i="'+ix+'"><h3><span class="ic">'+(ICONS[r.type]||"📍")+'</span>'+esc(r.type)+'</h3><div class="row"><span class="dot g"></span><span class="t">'+r.t+'</span>'+esc(r.action)+'</div>'+(r.place||r.comm?'<div class="row"><span class="dot s"></span><span class="t">'+r.t+'</span>'+esc([r.place,r.comm].filter(Boolean).join(" · "))+'</div>':'')+(r.links&&r.links.length?'<div class="row" style="color:var(--muted);font-size:14px">📡 '+(r.links.length>1?r.links.length+' джерела':esc(r.links[0].ch))+' · торкніться, щоб відкрити</div>':'')+'</div>'}).join("");
 }
 function renderHromady(){
 $("hcount").textContent=ST.comm.length;
@@ -161,6 +169,9 @@ $("t1").disabled=$("t2").disabled=!ST.sch;$("t1").style.opacity=$("t2").style.op
 document.querySelectorAll("nav button").forEach(function(b){b.onclick=function(){
 document.querySelectorAll("nav button").forEach(function(x){x.classList.toggle("on",x===b)});
 ["feed","acc"].forEach(function(t){$("tab-"+t).classList.toggle("hide",t!==b.dataset.t)});window.scrollTo(0,0)}});
+$("feed").onclick=function(e){var c=e.target.closest(".card");if(!c||c.dataset.i==null)return;var it=curList[+c.dataset.i];if(!it||!it.links||!it.links.length)return;
+if(it.links.length===1)openLink("https://t.me/"+it.links[0].id);else showLinks(it)};
+$("llist").onclick=function(e){var b=e.target.closest("button");if(b&&b.dataset.u){$("lmodal").classList.remove("open");openLink(b.dataset.u)}};
 $("hromady").onclick=function(){$("hmodal").classList.add("open")};
 $("setBtn").onclick=function(){$("smodal").classList.add("open");try{showDiag()}catch(e){}try{showSl()}catch(e){}};
 document.querySelectorAll("[data-close]").forEach(function(b){b.onclick=function(){b.closest(".modal").classList.remove("open")}});
@@ -317,14 +328,14 @@ if(!r.ok)throw new Error("HTTP "+r.status);
 var msgs=parseTg(await r.text()),now=Date.now(),items=[],n=0;
 if(!msgs.length)throw new Error("канал не знайдено або закритий");
 msgs.forEach(function(m){if(now-m.ms<20*60000&&RW.test(m.text)&&findComm(m.text))okMs[ch]=Math.max(okMs[ch]||0,m.ms);var c=classify(m.text);if(!c)return;n++;
-if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch});
+if(now-m.ms<6*3600000)items.push({type:c.type,action:c.action,place:m.text.slice(0,140),comm:c.comm,t:hm(new Date(m.ms)),ms:m.ms,src:ch,links:/^[A-Za-z0-9_]{3,40}\/\d{1,12}$/.test(m.id)?[{ch:m.id.split("/")[0],id:m.id,t:hm(new Date(m.ms))}]:[]});
 if(!ANN[m.id]&&now-m.ms<15*60000){ANN[m.id]=1;if(ST.comm.indexOf(c.comm)>-1)announce(c.type,"",c.action,c.comm,c.street,c.dir,c.qual)}});
 saveAnn();chFeed[ch]=items;srcMsg[ch]="✅ "+msgs.length+" повідомлень, загроз: "+n;srcGone[ch]=false;
 }catch(e){srcGone[ch]=/канал не знайдено|HTTP (400|403|404|410)/.test(String(e.message||e));srcMsg[ch]="❌ "+(e.message||e)+(String(e.message||e).match(/fetch|network|Failed/i)?" (працює лише в додатку)":"")}
 showSrc();updateBanner();renderFeed()}
 function pollAll(){var l=srcs();Object.keys(chFeed).forEach(function(k){if(l.indexOf(k)<0)delete chFeed[k]});l.forEach(pollOne);showSrc();renderFeed()}
 var polling=false;
-function pollTick(){var svc=!!(CP("Alerts")&&ST.bg),iv=Math.max(5,+ST.poll||5)*(svc?3:1)*1000;
+function pollTick(){var svc=!!(CP("Alerts")&&ST.bg),iv=(ST.poll>0?Math.max(5,+ST.poll):10)*(svc?3:1)*1000;
 if(!document.hidden&&!polling){polling=true;try{pollAll()}catch(e){}setTimeout(function(){polling=false},Math.min(iv,8000))}
 setTimeout(pollTick,iv)}
 setTimeout(pollTick,5000);
@@ -380,7 +391,7 @@ $("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voice
 document.addEventListener("click",unlockAudio,{once:true});
 if(ST.wake)setWake(true);
 renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
-ST.src=FIXED_SRC.join("\n");
+ST.src=FIXED_SRC.join("\n");if((ST.pollVer||0)<1){ST.poll=0;ST.pollVer=1;save()}
 pollAll();setInterval(updateBanner,30000);nativeInit();
 </script>
 </body>
