@@ -873,6 +873,19 @@ jobs:
                   }
                   call.resolve();
               }
+
+              @PluginMethod
+              public void openUrl(PluginCall call) {
+                  try {
+                      String u = call.getString("url", "");
+                      if (u.startsWith("https://t.me/") && u.length() < 200) {
+                          Intent i = new Intent(Intent.ACTION_VIEW, Uri.parse(u));
+                          i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          getContext().startActivity(i);
+                      }
+                  } catch (Exception e) { }
+                  call.resolve();
+              }
           }
           ZPEOF
           cat > $D/BootReceiver.java <<'ZPEOF'
@@ -929,10 +942,61 @@ jobs:
           open(p, "w", encoding="utf-8").write(s)
           print(s)
           ZPPY
-      - name: Fixed signing key
+      - name: Fixed signing key and version
         run: |
           mkdir -p ~/.android
-          if [ -f debug.keystore ]; then cp debug.keystore ~/.android/debug.keystore; fi
+          base64 -d > ~/.android/debug.keystore <<'ZPKEY'
+          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
+          ZPKEY
+          ls -l ~/.android/debug.keystore
+          sed -i "s/versionCode [0-9]*/versionCode ${GITHUB_RUN_NUMBER}/" android/app/build.gradle
+          grep -n "versionCode" android/app/build.gradle
       - name: Build APK
         run: |
           cd android
