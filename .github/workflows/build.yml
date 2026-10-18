@@ -371,7 +371,7 @@ jobs:
                   String t2 = "22:00";
                   float pitch = 0.5f;
                   float rate = 0.85f;
-                  int poll = 5;
+                  int poll = 0;
                   List<String> src = new ArrayList<String>();
                   List<String> comm = new ArrayList<String>();
 
@@ -388,7 +388,8 @@ jobs:
                           cfg.t2 = o.optString("t2", "22:00");
                           cfg.pitch = (float) o.optDouble("pitch", 0.5);
                           cfg.rate = (float) o.optDouble("rate", 0.85);
-                          cfg.poll = Math.max(3, Math.min(300, o.optInt("poll", 5)));
+                          int pv = o.optInt("poll", 0);
+                          cfg.poll = pv <= 0 ? 0 : Math.max(3, Math.min(300, pv));
                           JSONArray a = o.optJSONArray("src");
                           if (a != null) for (int i = 0; i < a.length(); i++) cfg.src.add(a.optString(i));
                           JSONArray b = o.optJSONArray("comm");
@@ -406,6 +407,9 @@ jobs:
               private PowerManager.WakeLock wl;
               private volatile long lastSpeak = 0;
               private volatile long backoffUntil = 0;
+              private final Map<String, String> etags = new ConcurrentHashMap<String, String>();
+              private volatile long lastAlert = 0;
+              private final Map<String, long[]> chFail = new ConcurrentHashMap<String, long[]>();
               private final SharedPreferences.OnSharedPreferenceChangeListener muteListener = new SharedPreferences.OnSharedPreferenceChangeListener() {
                   @Override
                   public void onSharedPreferenceChanged(SharedPreferences sp, String key) {
@@ -518,16 +522,29 @@ jobs:
                           for (final String ch : c.src) {
                               fs.add(ex.submit(new Callable<String>() {
                                   @Override public String call() {
-                                      try { poll(cc, ch); return null; } catch (Exception e) { return ch + ": " + e.getMessage(); }
+                                      long[] f = chFail.get(ch);
+                                      if (f != null && System.currentTimeMillis() < f[1]) return "SKIP";
+                                      try {
+                                          poll(cc, ch);
+                                          chFail.remove(ch);
+                                          return null;
+                                      } catch (Exception e) {
+                                          long fails = (f == null ? 0 : f[0]) + 1;
+                                          long delay = Math.min(300000L, 10000L << (int) Math.min(fails, 5));
+                                          chFail.put(ch, new long[]{fails, System.currentTimeMillis() + delay});
+                                          return ch + ": " + e.getMessage();
+                                      }
                                   }
                               }));
                           }
-                          int okN = 0;
+                          int okN = 0, skipped = 0;
                           String lastErr = "";
                           for (Future<String> f : fs) {
                               try {
                                   String r = f.get(60, TimeUnit.SECONDS);
-                                  if (r == null) okN++; else lastErr = r;
+                                  if (r == null) okN++;
+                                  else if ("SKIP".equals(r)) skipped++;
+                                  else lastErr = r;
                               } catch (Exception e) { }
                           }
                           ex.shutdownNow();
@@ -536,8 +553,10 @@ jobs:
                               logEv("Telegram обмежив частоту (429), пауза 60 с");
                           }
                           long took = System.currentTimeMillis() - start;
-                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + c.src.size() + " за " + (took / 1000) + " с, кожні " + c.poll + " с" + (lastErr.length() > 0 ? "; остання помилка " + lastErr : ""));
-                          long wait = Math.max(1000L, c.poll * 1000L - took);
+                          boolean quiet = c.sch && !inSchedule(c);
+                          int eff = quiet ? 60 : (c.poll > 0 ? c.poll : (System.currentTimeMillis() - lastAlert < 600000L ? 5 : 15));
+                          setSt("svc", new SimpleDateFormat("HH:mm:ss").format(new Date()) + " перевірено " + okN + " з " + c.src.size() + " за " + (took / 1000) + " с, кожні " + eff + " с" + (quiet ? " (нічна пауза)" : (c.poll == 0 ? " (авто)" : "")) + (skipped > 0 ? ", тимчасово пропущено недоступних: " + skipped : "") + (lastErr.length() > 0 ? "; остання помилка " + lastErr : ""));
+                          long wait = Math.max(1000L, eff * 1000L - took);
                           try { Thread.sleep(wait); } catch (InterruptedException e) { break; }
                       } else {
                           if (System.currentTimeMillis() - lastSpeak > 20000) {
@@ -556,6 +575,7 @@ jobs:
                   for (Parser.Msg m : msgs) {
                       Parser.Res r = Parser.classify(m.text);
                       if (r == null) continue;
+                      if (now - m.ms <= 15 * 60000L && c.comm.contains(r.comm)) lastAlert = now;
                       if (announced.contains(m.id)) continue;
                       if (now - m.ms > 15 * 60000L) continue;
                       announced.add(m.id);
@@ -635,8 +655,14 @@ jobs:
                   con.setConnectTimeout(8000);
                   con.setReadTimeout(15000);
                   con.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36");
+                  String et = etags.get(u);
+                  if (et != null) con.setRequestProperty("If-None-Match", et);
                   try {
-                      if (con.getResponseCode() != 200) throw new Exception("HTTP " + con.getResponseCode());
+                      int code = con.getResponseCode();
+                      if (code == 304) return "";
+                      if (code != 200) throw new Exception("HTTP " + code);
+                      String newTag = con.getHeaderField("ETag");
+                      if (newTag != null) etags.put(u, newTag);
                       BufferedReader br = new BufferedReader(new InputStreamReader(con.getInputStream(), "UTF-8"));
                       StringBuilder sb = new StringBuilder();
                       String line;
