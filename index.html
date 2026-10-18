@@ -98,6 +98,7 @@ a{color:var(--acc)}.links a{display:block;font-size:18px;margin:3px 0}
 <div class="seg" id="theme"><button data-v="system" class="on">Системна</button><button data-v="light">Світла</button><button data-v="dark">Темна</button></div>
 <div class="sec">Сповіщення про загрози</div>
 <div class="line"><span>Перевіряти канали кожні</span><select id="pollSel" style="background:var(--chip);color:var(--text);border:0;border-radius:12px;padding:12px;font-size:16px"><option value="0">Авто (економно)</option><option value="5">5 с</option><option value="10">10 с</option><option value="30">30 с</option><option value="60">1 хв</option></select></div>
+<div class="demo" style="text-align:left;margin:0 0 8px">Авто: 5 с, коли є загрози в ваших громадах, і 15 с у спокої. Це економить батарею й трафік. Якщо ввімкнено розклад озвучення, поза розкладом додаток перевіряє раз на 60 с (нічна пауза).</div>
 <div class="line"><span>Не гасити екран</span><button class="sw" id="wakeSw"></button></div>
 <div class="line"><span>Працювати у фоні (з вимкненим екраном)</span><button class="sw" id="bgSw"></button></div>
 <div class="line" id="notLine"><span>Системні сповіщення</span><button class="sw" id="notSw"></button></div>
@@ -391,7 +392,7 @@ $("voiceSel").onchange=function(){if(nTTS()){ST.nvoice=+this.value}else{ST.voice
 document.addEventListener("click",unlockAudio,{once:true});
 if(ST.wake)setWake(true);
 renderFeed();renderHromady();applyTheme();applySw();pickVoice();dbOpen(function(){dbLoad(vRender)});
-ST.src=FIXED_SRC.join("\n");if((ST.pollVer||0)<1){ST.poll=0;ST.pollVer=1;save()}
+ST.src=FIXED_SRC.join("\n");if((ST.pollVer||0)<1){ST.poll=0;ST.pollVer=1;save()}$("pollSel").value=String(ST.poll);
 pollAll();setInterval(updateBanner,30000);nativeInit();
 </script>
 </body>
